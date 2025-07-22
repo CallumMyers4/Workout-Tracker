@@ -5,9 +5,10 @@ from db_helper import DBHelper
 from exercise_entry import ExerciseEntry
 
 class WorkoutEditor(QDialog):
-    def __init__(self, db, parent=None):
+    def __init__(self, db, parent=None, workout_id=None):
         super().__init__(parent)
         self.db = db
+        self.workout_id = workout_id 
         self.setWindowTitle("Add/Edit Workout")
         self.resize(600, 600)
 
@@ -72,7 +73,6 @@ class WorkoutEditor(QDialog):
                 QMessageBox.warning(self, "Validation Error", "Exercise name cannot be empty.")
                 return
 
-            # Optional: validate reps and weights counts and values here
             if not all(data["reps"]) or not all(data["weight"]):
                 QMessageBox.warning(self, "Validation Error", "Reps and weights must be filled for all sets.")
                 return
@@ -83,14 +83,41 @@ class WorkoutEditor(QDialog):
 
             exercises_data.append(data)
 
-        # Save workout and exercises to DB (adjust to your DB helper functions)
-        workout_id = self.db.add_workout(name, date)
+        if self.workout_id is None:
+            # Add new workout
+            workout_id = self.db.add_workout(name, date)
+        else:
+            # Update existing workout
+            workout_id = self.workout_id
+            self.db.update_workout(workout_id, name, date)
+            self.db.delete_exercises_for_workout(workout_id)  # remove old exercises first
 
         for ex in exercises_data:
-            # Convert reps and weights list to comma separated strings for DB
             reps_str = ",".join(ex["reps"])
             weights_str = ",".join(ex["weight"])
             self.db.add_exercise(workout_id, ex["name"], ex["sets"], reps_str, weights_str)
 
         QMessageBox.information(self, "Success", "Workout saved successfully!")
         self.accept()
+
+
+    def set_workout_data(self, name, date, exercises):
+        self.workout_name_input.setText(name)
+
+        if date:
+            self.workout_date_input.setDate(QDate.fromString(date, "yyyy-MM-dd"))
+        else:
+            self.workout_date_input.setDate(QDate.currentDate())
+
+        # Clear old entries from layout and list
+        for entry in self.exercise_entries:
+            entry.setParent(None)
+        self.exercise_entries.clear()
+
+        # Add new entries and set data correctly
+        for ex in exercises:
+            ex_name, sets, reps, weights = ex
+            entry = ExerciseEntry(self.db)
+            entry.set_data(ex_name, sets, reps, weights)
+            self.exercises_container_layout.addWidget(entry)
+            self.exercise_entries.append(entry)

@@ -1,39 +1,58 @@
-# workout_tracker.py
-
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QTableWidget, QTableWidgetItem,
-    QHeaderView, QAbstractItemView, QMessageBox
+    QHeaderView, QAbstractItemView, QMessageBox, QHBoxLayout, QMenu
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QDate
 from workout_editor import WorkoutEditor
-
+from goals_editor import GoalsEditor
 
 class WorkoutTracker(QWidget):
     def __init__(self, db_helper):
         super().__init__()
         self.db = db_helper
         self.setWindowTitle("Workout Tracker")
-        self.resize(700, 500)
+        self.resize(800, 500)
 
         self.layout = QVBoxLayout(self)
 
+        # Create a horizontal layout for the buttons
+        self.top_menu_buttons_layout = QHBoxLayout()
+
+        # Add new workout button
         self.add_workout_btn = QPushButton("Add Workout")
         self.add_workout_btn.clicked.connect(self.open_workout_editor)
-        self.layout.addWidget(self.add_workout_btn)
+        self.top_menu_buttons_layout.addWidget(self.add_workout_btn)
 
+        # Add goal set/view button
+        self.view_goals_btn = QPushButton("View and Change Goals")
+        self.view_goals_btn.clicked.connect(self.open_goals_editor)
+        self.top_menu_buttons_layout.addWidget(self.view_goals_btn)
+
+        # Add top menu buttons to the main layout
+        self.layout.addLayout(self.top_menu_buttons_layout)
+
+        # Table to display workouts
         self.table = QTableWidget()
         self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels(["Exercise / Workout", "Reps", "Weight (Kg)"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.cellClicked.connect(self.toggle_workout_details)
+        self.table.verticalHeader().setVisible(False)
         self.layout.addWidget(self.table)
 
-        self.expanded_row = None
+        # Add a context menu for the table
+        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self.show_context_menu)
+
+        # Expanded row tracking — initialize to -1 (no row expanded)
+        self.expanded_row = -1
         self.expanded_workout_id = None
 
+        # Show the workouts
         self.load_workouts()
 
+        # Button to delete selected workout
         self.delete_workout_btn = QPushButton("Delete Workout")
         self.delete_workout_btn.clicked.connect(self.delete_selected_workout)
         self.layout.addWidget(self.delete_workout_btn)
@@ -57,6 +76,7 @@ class WorkoutTracker(QWidget):
 
     def toggle_workout_details(self, row, column):
         clicked_item = self.table.item(row, 0)
+
         if not clicked_item:
             return
 
@@ -69,10 +89,10 @@ class WorkoutTracker(QWidget):
             self.collapse_details()
             return
 
-        # Collapse previous workout
-        if self.expanded_row is not None:
+        # Collapse previous workout if any
+        if self.expanded_row != -1:
             self.collapse_details()
-            # Adjust row index if needed
+            # Adjust row index if needed after collapsing previous rows
             if row > self.expanded_row:
                 row -= self.details_count
 
@@ -113,22 +133,33 @@ class WorkoutTracker(QWidget):
             self.exercise_set_rows[insert_row] = 0
             self.details_count += 1
 
-
     def collapse_details(self):
-        if self.expanded_row is not None:
+        if self.expanded_row != -1:
             for _ in range(self.details_count):
                 self.table.removeRow(self.expanded_row + 1)
-        self.expanded_row = None
+        self.expanded_row = -1
         self.expanded_workout_id = None
         self.details_count = 0
         self.exercise_set_rows = {}
 
+    def open_workout_editor(self, workout_id=None, template_from_id=None):
+        if workout_id is not None:
+            editor = WorkoutEditor(self.db, self, workout_id)
+            # Editing existing workout
+            workout = self.db.get_workout_by_id(workout_id)
+            exercises = self.db.get_exercises_for_workout(workout_id)
+            editor.set_workout_data(workout[1], workout[2], exercises)
+        elif template_from_id is not None:
+            editor = WorkoutEditor(self.db, self)
+            # Using workout as template: load data but set date to today and allow editing
+            workout = self.db.get_workout_by_id(template_from_id)
+            exercises = self.db.get_exercises_for_workout(template_from_id)
+            today_str = QDate.currentDate().toString("yyyy-MM-dd")
+            editor.set_workout_data(workout[1], today_str, exercises)
+        else:
+            editor = WorkoutEditor(self.db, self)
 
-    def open_workout_editor(self):
-        editor = WorkoutEditor(self.db, self)
         if editor.exec_():
-            self.expanded_row = None
-            self.expanded_workout_id = None
             self.load_workouts()
 
     def delete_selected_workout(self):
@@ -157,7 +188,7 @@ class WorkoutTracker(QWidget):
 
         if reply == QMessageBox.Yes:
             self.db.delete_workout(workout_id)
-            self.expanded_row = None
+            self.expanded_row = -1
             self.expanded_workout_id = None
             self.load_workouts()
 
@@ -195,3 +226,27 @@ class WorkoutTracker(QWidget):
             button.setText(f"▼ {exercise_data['name']}")
             self.exercise_set_rows[row] = sets
             self.details_count += sets
+
+    def open_goals_editor(self):
+        editor = GoalsEditor(self.db, self)
+        if editor.exec_():
+            self.expanded_row = -1
+            self.expanded_workout_id = None
+            self.load_workouts()
+
+    def show_context_menu(self, pos):
+        menu = QMenu()
+
+        duplicate_action = menu.addAction("Use as Template")
+        edit_action = menu.addAction("Edit Workout")
+
+        action = menu.exec_(self.table.viewport().mapToGlobal(pos))
+
+        if action == duplicate_action:
+            selected_row = self.table.currentRow()
+            workout_id = self.table.item(selected_row, 0).data(Qt.UserRole)
+            self.open_workout_editor(template_from_id=workout_id)
+        elif action == edit_action:
+            selected_row = self.table.currentRow()
+            workout_id = self.table.item(selected_row, 0).data(Qt.UserRole)
+            self.open_workout_editor(workout_id=workout_id)

@@ -110,3 +110,26 @@ class ExerciseEntry(QWidget):
             "reps": [r.text().strip() for r in self.reps_inputs],
             "weight": [w.text().strip() for w in self.weight_inputs]
         }
+    
+    def set_data(self, name, sets, reps, weights):
+        # Set exercise name in combo box
+        index = self.exercise_dropdown.findText(name)
+        if index == -1:
+            self.exercise_dropdown.addItem(name)
+            index = self.exercise_dropdown.count() - 1
+        self.exercise_dropdown.setCurrentIndex(index)
+
+        # Set sets count - triggers updating reps/weight inputs
+        self.sets.setValue(int(sets))
+
+        # Convert reps and weights to lists if they are strings
+        if isinstance(reps, str):
+            reps = reps.split(',')
+        if isinstance(weights, str):
+            weights = weights.split(',')
+
+        # Fill in reps and weights inputs
+        for i, (r_input, w_input) in enumerate(zip(self.reps_inputs, self.weight_inputs)):
+            r_input.setText(reps[i].strip() if i < len(reps) else "")
+            w_input.setText(weights[i].strip() if i < len(weights) else "")
+
