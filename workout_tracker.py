@@ -20,7 +20,7 @@ class WorkoutTracker(QWidget):
 
         # Add new workout button
         self.add_workout_btn = QPushButton("Add Workout")
-        self.add_workout_btn.clicked.connect(self.open_workout_editor)
+        self.add_workout_btn.clicked.connect(lambda: self.open_workout_editor())
         self.top_menu_buttons_layout.addWidget(self.add_workout_btn)
 
         # Add goal set/view button
@@ -228,11 +228,9 @@ class WorkoutTracker(QWidget):
             self.details_count += sets
 
     def open_goals_editor(self):
-        editor = GoalsEditor(self.db, self)
-        if editor.exec_():
-            self.expanded_row = -1
-            self.expanded_workout_id = None
-            self.load_workouts()
+        self.editor = GoalsEditor(self.db, self)
+        self.editor.finished.connect(lambda: self.load_workouts())
+        self.editor.show()
 
     def show_context_menu(self, pos):
         menu = QMenu()

@@ -127,3 +127,13 @@ class DBHelper:
     def delete_exercises_for_workout(self, workout_id):
         self.conn.execute("DELETE FROM exercises WHERE workout_id=?", (workout_id,))
         self.conn.commit()
+
+    def get_exercise_history(self, exercise_name):
+        query = """
+            SELECT w.date, e.reps, e.weight
+            FROM exercises e
+            JOIN workouts w ON e.workout_id = w.id
+            WHERE e.name = ?
+            ORDER BY w.date
+        """
+        return self.conn.execute(query, (exercise_name,)).fetchall()
