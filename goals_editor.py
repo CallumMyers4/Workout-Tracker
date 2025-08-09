@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 import matplotlib.pyplot as plt
 from exercise_graph import ExerciseGraph
+from exercise_graph import ExerciseProgressGraph
 
 class GoalsEditor(QDialog):
     def __init__(self, db, parent=None):
@@ -137,42 +138,25 @@ class GoalsEditor(QDialog):
         #Show success, and close
         QMessageBox.information(self, "Success", "Goals saved successfully.")
         self.accept()
-    
-    #Show the graph for the exercise
+            
     def show_exercise_progress(self, button):
-        #Find the row associated with the clicked button
         for row in range(self.table.rowCount()):
-            #If clicking the graph button
             if self.table.cellWidget(row, 4) == button:
-                #Extract the data
                 name_item = self.table.item(row, 0)
                 goal_item = self.table.item(row, 1)
                 exercise_name = name_item.text()
                 goal_text = goal_item.text().strip().lower()
-
-                #Either return no goal set, or convert data to float
                 goal = None if goal_text == "none" else float(goal_text)
                 break
         else:
-            #Show warining if no exercise found
             QMessageBox.warning(self, "Error", "Could not determine which exercise to plot.")
             return
 
-        #Fetch and process history
         history = self.db.get_exercise_history(exercise_name)
-
-        #Show warning if no history
         if not history:
             QMessageBox.information(self, "No Data", f"No history for '{exercise_name}'.")
             return
 
-        #Work out average weight per rep for this exercise
-        dates, avg_weights, max_weights = ExerciseGraph.compute_avg_weight_per_rep(history)
-
-        #If no valid data, show warning
-        if not dates:
-            QMessageBox.information(self, "No Valid Sets", f"No usable data for '{exercise_name}'.")
-            return
-
-        #Show graph
-        ExerciseGraph.plot_average_weight_per_rep(dates, avg_weights, exercise_name, goal, max_weights)
+        # Create and show the progress window
+        progress_window = ExerciseProgressGraph(exercise_name, goal, history)
+        progress_window.showFullScreen()
