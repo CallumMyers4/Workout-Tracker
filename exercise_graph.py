@@ -251,7 +251,7 @@ class ExerciseProgressGraph(QDialog):
         ax.set_xlabel("Date")
         ax.set_ylabel("Value")
         ax.grid(True)
-        ax.legend(loc='upper left')
+        ax.legend(lines, labels, loc='upper left')
         ax.tick_params(axis='x', rotation=45)
 
         # Checkbox axes inside figure

@@ -158,5 +158,6 @@ class GoalsEditor(QDialog):
             return
 
         # Create and show the progress window
-        progress_window = ExerciseProgressGraph(exercise_name, goal, history)
-        progress_window.showFullScreen()
+        self.progress_window = ExerciseProgressGraph(exercise_name, goal, history, parent=self)
+        self.progress_window.showFullScreen()
+

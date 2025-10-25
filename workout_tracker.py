@@ -1,10 +1,11 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QTableWidget, QTableWidgetItem,
-    QHeaderView, QAbstractItemView, QMessageBox, QHBoxLayout, QMenu
+    QHeaderView, QAbstractItemView, QMessageBox, QHBoxLayout, QMenu, QInputDialog
 )
 from PyQt5.QtCore import Qt, QDate
 from workout_editor import WorkoutEditor
 from goals_editor import GoalsEditor
+from google_drive_helper import GoogleDriveHelper
 
 class WorkoutTracker(QWidget):
     def __init__(self, db_helper):
@@ -21,6 +22,21 @@ class WorkoutTracker(QWidget):
 
         #Create a horizontal layout for the buttons
         self.top_menu_buttons_layout = QHBoxLayout()
+
+        #Add Google Drive login button
+        self.login_btn = QPushButton("Login to Google Drive")
+        self.login_btn.clicked.connect(self.login_google)
+        self.top_menu_buttons_layout.addWidget(self.login_btn)
+
+        #Add Google Drive save button
+        self.save_btn = QPushButton("Save DB to Google Drive")
+        self.save_btn.clicked.connect(self.save_to_drive)
+        self.top_menu_buttons_layout.addWidget(self.save_btn)
+
+        #Add Google Drive pull button
+        self.pull_btn = QPushButton("Pull DBs from Google Drive")
+        self.pull_btn.clicked.connect(self.pull_from_drive)
+        self.top_menu_buttons_layout.addWidget(self.pull_btn)
 
         #Add new workout button
         self.add_workout_btn = QPushButton("Add Workout")
@@ -308,6 +324,25 @@ class WorkoutTracker(QWidget):
         self.editor.finished.connect(lambda: self.load_workouts())
         self.editor.show()
 
+    def save_to_drive(self):
+        if not self.drive_helper:
+            QMessageBox.warning(self, "Google Drive", "Please log in first.")
+            return
+        try:
+            db_files = ["workouts.db", "your_database_file.db"]
+            for db_file in db_files:
+                file_id = self.drive_helper.upload_to_folder(
+                    db_file, folder_name="Workout Tracker Backups", mime_type="application/x-sqlite3"
+                )
+                print(f"Uploaded {db_file} → Drive File ID: {file_id}")
+            QMessageBox.information(self, "Google Drive", "All databases saved successfully to Workout Tracker Backups folder.")
+        except Exception as e:
+            QMessageBox.critical(self, "Google Drive Error", str(e))
+
+    def login_google(self):
+        self.drive_helper = GoogleDriveHelper()
+        QMessageBox.information(self, "Google Drive", "Logged in successfully!")
+
     #Show a context menu for the workout table
     def show_context_menu(self, pos):
         menu = QMenu()
@@ -339,3 +374,26 @@ class WorkoutTracker(QWidget):
 
             #Open the workout editor with the selected workout 
             self.open_workout_editor(workout_id=workout_id)
+
+    def pull_from_drive(self):
+        if not self.drive_helper:
+            QMessageBox.warning(self, "Google Drive", "Please log in first.")
+            return
+
+        try:
+            downloaded = self.drive_helper.download_from_folder(
+                folder_name="Workout Tracker Backups",
+                local_dir=".",  # save to current working directory
+                files=["workouts.db", "your_database_file.db"]  # specific files
+            )
+            QMessageBox.information(
+                self,
+                "Google Drive",
+                f"Downloaded successfully:\n" + "\n".join(downloaded) +
+                "\n\nRestart the app to reload updated databases."
+            )
+        except FileNotFoundError:
+            QMessageBox.warning(self, "Google Drive", "No backups found in Drive folder.")
+        except Exception as e:
+            QMessageBox.critical(self, "Google Drive Error", str(e))
+
