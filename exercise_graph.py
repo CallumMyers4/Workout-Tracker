@@ -187,83 +187,144 @@ class ExerciseGraph:
         plt.show(block=False)
 
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QSizePolicy
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QSizePolicy, QPushButton
+from PyQt5.QtCore import Qt
 from matplotlib.figure import Figure
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.widgets import CheckButtons
 
 class ExerciseProgressGraph(QDialog):
-    def __init__(self, exercise_name, goal, history, parent=None):
+    def __init__(self, exercise_name, goal, history, parent=None, show_checkbuttons=True):
         super().__init__(parent)
         self.setWindowTitle(f"{exercise_name} – Progress Overview")
         self.resize(900, 600)
 
+        self.show_checkbuttons_flag = show_checkbuttons
+
+        # Layout
         self.layout = QVBoxLayout(self)
         self.setLayout(self.layout)
 
-        # Create Figure and Canvas
+        # Figure and canvas
         self.figure = Figure(constrained_layout=True)
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.canvas.updateGeometry()
         self.layout.addWidget(self.canvas)
 
+        # Toggle Buttons
+        self.toggle_buttons_btn = QPushButton("Toggle Buttons", self)
+        self.toggle_fullscreen_btn = QPushButton("Fullscreen", self)
+
+        self.toggle_buttons_btn.setFixedSize(120, 30)
+        self.toggle_fullscreen_btn.setFixedSize(100, 30)
+
+        self.toggle_buttons_btn.clicked.connect(self.toggle_checkbuttons)
+        self.toggle_fullscreen_btn.clicked.connect(self.toggle_fullscreen)
+
+        self.toggle_buttons_btn.raise_()
+        self.toggle_fullscreen_btn.raise_()
+
         # Plot data
         self.plot(exercise_name, goal, history)
+
+        # Initial button placement
+        self.update_button_positions()
+
+    # Reposition buttons on resize
+    def resizeEvent(self, event):
+        self.update_button_positions()
+        super().resizeEvent(event)
+
+    def update_button_positions(self):
+        margin = 10
+        btn_spacing = 5
+        # Place toggle_buttons_btn at top-right
+        self.toggle_buttons_btn.move(self.width() - self.toggle_buttons_btn.width() - margin,
+                                     margin)
+        # Place toggle_fullscreen_btn to the left of toggle_buttons_btn
+        self.toggle_fullscreen_btn.move(self.width() - self.toggle_buttons_btn.width() -
+                                        btn_spacing - self.toggle_fullscreen_btn.width() - margin,
+                                        margin)
+
+    # Fullscreen toggle
+    def toggle_fullscreen(self):
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
+
+    # Also toggle fullscreen via F11
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_F11:
+            self.toggle_fullscreen()
+        else:
+            super().keyPressEvent(event)
 
     def plot(self, exercise_name, goal, history):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
 
-        lines = []
-        labels = []
+        self.lines = []
+        self.labels = []
 
-        # Compute data series (reuse your ExerciseGraph static methods)
+        # Compute data series
         dates_avg, avg_weights, max_weights = ExerciseGraph.compute_avg_weight_per_rep(history)
         dates_1rm, e1rm = ExerciseGraph.compute_1rm_potential(history)
         dates_perf, perf = ExerciseGraph.compute_performance(history)
 
         if dates_avg:
             l_avg, = ax.plot(dates_avg, avg_weights, marker='o', color='blue', label='Avg Weight per Rep')
-            lines.append(l_avg)
-            labels.append('Avg Weight per Rep')
+            self.lines.append(l_avg)
+            self.labels.append('Avg Weight per Rep')
 
         if dates_avg and max_weights:
             l_max, = ax.plot(dates_avg, max_weights, marker='s', linestyle='--', color='green', label='Max Weight per Day')
-            lines.append(l_max)
-            labels.append('Max Weight per Day')
+            self.lines.append(l_max)
+            self.labels.append('Max Weight per Day')
 
         if dates_1rm:
             l_1rm, = ax.plot(dates_1rm, e1rm, marker='o', color='purple', label='Estimated 1RM Potential')
-            lines.append(l_1rm)
-            labels.append('Estimated 1RM Potential')
+            self.lines.append(l_1rm)
+            self.labels.append('Estimated 1RM Potential')
 
             if goal is not None:
                 goal_line = ax.axhline(y=goal, color='red', linestyle='--', label=f'Goal: {goal} kg')
-                lines.append(goal_line)
-                labels.append('Goal')
+                self.lines.append(goal_line)
+                self.labels.append('Goal')
 
         if dates_perf:
             l_perf, = ax.plot(dates_perf, perf, marker='o', color='orange', label='Performance')
-            lines.append(l_perf)
-            labels.append('Performance')
+            self.lines.append(l_perf)
+            self.labels.append('Performance')
 
         ax.set_xlabel("Date")
         ax.set_ylabel("Value")
         ax.grid(True)
-        ax.legend(lines, labels, loc='upper left')
+        ax.legend(self.lines, self.labels, loc='upper left')
         ax.tick_params(axis='x', rotation=45)
 
-        # Checkbox axes inside figure
-        checkbox_ax = self.figure.add_axes([0.01, 0.1, 0.15, 0.3])
-        visibility = [line.get_visible() for line in lines]
-        self.check = CheckButtons(checkbox_ax, labels, visibility)
+        # CheckButtons
+        if self.show_checkbuttons_flag:
+            self.checkbox_ax = self.figure.add_axes([0.01, 0.1, 0.15, 0.3])
+            visibility = [line.get_visible() for line in self.lines]
+            self.check = CheckButtons(self.checkbox_ax, self.labels, visibility)
 
-        def toggle_visibility(label):
-            idx = labels.index(label)
-            lines[idx].set_visible(not lines[idx].get_visible())
-            self.canvas.draw_idle()
+            def toggle_visibility(label):
+                idx = self.labels.index(label)
+                self.lines[idx].set_visible(not self.lines[idx].get_visible())
+                self.canvas.draw_idle()
 
-        self.check.on_clicked(toggle_visibility)
+            self.check.on_clicked(toggle_visibility)
+        else:
+            self.checkbox_ax = None
+            self.check = None
 
+        self.canvas.draw_idle()
+
+    # Toggle CheckButtons visibility
+    def toggle_checkbuttons(self):
+        if self.checkbox_ax is None:
+            return
+        self.checkbox_ax.set_visible(not self.checkbox_ax.get_visible())
         self.canvas.draw_idle()
