@@ -5,6 +5,7 @@ import sqlite3
 class DBHelper:
     #Initialize the database connection
     def __init__(self, db_path="workouts.db"):
+        self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
         self.conn.execute("PRAGMA foreign_keys = ON")
         self.init_db()
@@ -45,6 +46,7 @@ class DBHelper:
 
         #Commit the changes
         self.conn.commit()
+        self.sync_exercise_catalog()
 
     #Add a new workout to the database
     def add_workout(self, name, date):
@@ -65,7 +67,7 @@ class DBHelper:
     #Get all goals from the exercises catalog
     def get_all_goals(self):
         c = self.conn.cursor()
-        c.execute("SELECT id, name, goal FROM exercises_catalog")
+        c.execute("SELECT id, name, goal FROM exercises_catalog ORDER BY name COLLATE NOCASE ASC")
         return c.fetchall()
     
     #Get all workouts from the database
@@ -73,6 +75,22 @@ class DBHelper:
         c = self.conn.cursor()
         c.execute("SELECT id, name, date FROM workouts ORDER BY date DESC, id DESC")
         return c.fetchall()
+
+    #Get workout summaries with exercise counts for browse screens
+    def get_workout_summaries(self):
+        query = """
+            SELECT
+                w.id,
+                w.name,
+                w.date,
+                COUNT(e.id) AS exercise_entries,
+                COUNT(DISTINCT e.name) AS exercise_count,
+                COALESCE(GROUP_CONCAT(DISTINCT e.name), '') AS exercise_names
+            FROM workouts w
+            LEFT JOIN exercises e ON e.workout_id = w.id
+            GROUP BY w.id, w.name, w.date
+        """
+        return self.conn.execute(query).fetchall()
 
     #Get all exercises for a specific workout
     def get_exercises_for_workout(self, workout_id):
@@ -92,17 +110,86 @@ class DBHelper:
     #Get all exercise names from the catalog
     def get_all_exercise_names(self):
         c = self.conn.cursor()
-        c.execute("SELECT name FROM exercises_catalog ORDER BY name ASC")
+        c.execute("SELECT name FROM exercises_catalog ORDER BY name COLLATE NOCASE ASC")
         return [row[0] for row in c.fetchall()]
+
+    def get_all_catalog_exercises(self):
+        c = self.conn.cursor()
+        c.execute("SELECT id, name, goal FROM exercises_catalog ORDER BY name COLLATE NOCASE ASC")
+        return c.fetchall()
+
+    def sync_exercise_catalog(self):
+        c = self.conn.cursor()
+        c.execute(
+            """
+            INSERT OR IGNORE INTO exercises_catalog (name)
+            SELECT DISTINCT TRIM(name)
+            FROM exercises
+            WHERE TRIM(COALESCE(name, '')) <> ''
+            """
+        )
+        self.conn.commit()
+
+    def get_catalog_exercise_by_name(self, name):
+        c = self.conn.cursor()
+        c.execute(
+            "SELECT id, name, goal FROM exercises_catalog WHERE LOWER(name) = LOWER(?)",
+            (name,),
+        )
+        return c.fetchone()
 
     #Add a new exercise to the catalog
     def add_exercise_to_catalog(self, name):
-        try:
-            c = self.conn.cursor()
-            c.execute("INSERT INTO exercises_catalog (name) VALUES (?)", (name,))
+        cleaned_name = (name or "").strip()
+        if not cleaned_name:
+            raise ValueError("Exercise name cannot be empty.")
+
+        if self.get_catalog_exercise_by_name(cleaned_name):
+            raise ValueError("That exercise already exists.")
+
+        c = self.conn.cursor()
+        c.execute("INSERT INTO exercises_catalog (name) VALUES (?)", (cleaned_name,))
+        self.conn.commit()
+        return c.lastrowid
+
+    def rename_exercise_in_catalog(self, exercise_id, new_name, combine_existing=False):
+        cleaned_name = (new_name or "").strip()
+        if not cleaned_name:
+            raise ValueError("Exercise name cannot be empty.")
+
+        c = self.conn.cursor()
+        c.execute("SELECT id, name, goal FROM exercises_catalog WHERE id = ?", (exercise_id,))
+        current = c.fetchone()
+        if not current:
+            raise ValueError("Exercise not found.")
+
+        _current_id, current_name, current_goal = current
+        existing = self.get_catalog_exercise_by_name(cleaned_name)
+
+        if existing and existing[0] != exercise_id:
+            if not combine_existing:
+                raise ValueError("That exercise already exists.")
+
+            target_id, target_name, target_goal = existing
+            merged_goal = target_goal
+            if merged_goal is None:
+                merged_goal = current_goal
+            elif current_goal is not None:
+                merged_goal = max(float(merged_goal), float(current_goal))
+
+            c.execute(
+                "UPDATE exercises SET name = ? WHERE LOWER(name) = LOWER(?)",
+                (target_name, current_name),
+            )
+            c.execute("UPDATE exercises_catalog SET goal = ? WHERE id = ?", (merged_goal, target_id))
+            c.execute("DELETE FROM exercises_catalog WHERE id = ?", (exercise_id,))
             self.conn.commit()
-        except sqlite3.IntegrityError:
-            pass  # Already exists
+            return {"combined": True, "name": target_name}
+
+        c.execute("UPDATE exercises SET name = ? WHERE LOWER(name) = LOWER(?)", (cleaned_name, current_name))
+        c.execute("UPDATE exercises_catalog SET name = ? WHERE id = ?", (cleaned_name, exercise_id))
+        self.conn.commit()
+        return {"combined": False, "name": cleaned_name}
 
     #Update the goal for an exercise in the catalog
     def update_goal(self, exercise_id, new_goal):
@@ -170,3 +257,8 @@ class DBHelper:
             ORDER BY w.date
         """
         return self.conn.execute(query, (exercise_name,)).fetchall()
+
+    #Close the active database connection
+    def close(self):
+        if self.conn:
+            self.conn.close()
