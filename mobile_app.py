@@ -120,7 +120,7 @@ KV = """
     height: dp(48)
     canvas.before:
         Color:
-            rgba: app.primary_color
+            rgba: (app.primary_color[0] * 0.86, app.primary_color[1] * 0.86, app.primary_color[2] * 0.86, app.primary_color[3]) if self.state == 'down' else app.primary_color
         RoundedRectangle:
             pos: self.pos
             size: self.size
@@ -137,7 +137,7 @@ KV = """
     height: dp(48)
     canvas.before:
         Color:
-            rgba: app.accent_color
+            rgba: (app.accent_color[0] * 0.86, app.accent_color[1] * 0.86, app.accent_color[2] * 0.86, app.accent_color[3]) if self.state == 'down' else app.accent_color
         RoundedRectangle:
             pos: self.pos
             size: self.size
@@ -154,7 +154,7 @@ KV = """
     height: dp(46)
     canvas.before:
         Color:
-            rgba: app.panel_color
+            rgba: (app.panel_color[0] * 0.9, app.panel_color[1] * 0.9, app.panel_color[2] * 0.9, app.panel_color[3]) if self.state == 'down' else app.panel_color
         RoundedRectangle:
             pos: self.pos
             size: self.size
@@ -171,7 +171,7 @@ KV = """
     height: dp(46)
     canvas.before:
         Color:
-            rgba: app.danger_color
+            rgba: (app.danger_color[0] * 0.86, app.danger_color[1] * 0.86, app.danger_color[2] * 0.86, app.danger_color[3]) if self.state == 'down' else app.danger_color
         RoundedRectangle:
             pos: self.pos
             size: self.size
@@ -204,7 +204,7 @@ KV = """
     text_size: self.size
     canvas.before:
         Color:
-            rgba: app.input_color
+            rgba: (app.input_color[0] * 0.94, app.input_color[1] * 0.94, app.input_color[2] * 0.94, app.input_color[3]) if self.state == 'down' else app.input_color
         RoundedRectangle:
             pos: self.pos
             size: self.size
@@ -527,13 +527,13 @@ KV = """
         id: detail_area
         orientation: 'vertical'
         size_hint_y: None
-        height: self.minimum_height
-        spacing: dp(8)
+        height: 0
+        spacing: 0
         BoxLayout:
             id: set_rows
             orientation: 'vertical'
             size_hint_y: None
-            height: self.minimum_height
+            height: 0
             spacing: dp(8)
         MutedLabel:
             id: collapsed_summary
@@ -816,6 +816,36 @@ def add_rounded_background(widget, rgba, radius):
     widget.bind(pos=update_rect, size=update_rect)
 
 
+def shade_color(rgba, factor=0.88):
+    return (
+        max(0, min(1, rgba[0] * factor)),
+        max(0, min(1, rgba[1] * factor)),
+        max(0, min(1, rgba[2] * factor)),
+        rgba[3] if len(rgba) > 3 else 1,
+    )
+
+
+def add_stateful_rounded_background(widget, rgba, radius, pressed_factor=0.88):
+    from kivy.graphics import Color, RoundedRectangle
+
+    with widget.canvas.before:
+        widget._bg_color_instruction = Color(*rgba)
+        widget._bg_rect = RoundedRectangle(pos=widget.pos, size=widget.size, radius=[radius])
+
+    def update_rect(*_args):
+        widget._bg_rect.pos = widget.pos
+        widget._bg_rect.size = widget.size
+
+    def update_color(*_args):
+        active_rgba = shade_color(rgba, pressed_factor) if getattr(widget, "state", "normal") == "down" else rgba
+        widget._bg_color_instruction.rgba = active_rgba
+
+    widget.bind(pos=update_rect, size=update_rect)
+    if hasattr(widget, "state"):
+        widget.bind(state=update_color)
+    update_color()
+
+
 def create_themed_card(height=None, padding=dp(14), spacing=dp(8)):
     card = BoxLayout(orientation="vertical", spacing=spacing, padding=padding, size_hint_y=None)
     if height is not None:
@@ -856,7 +886,7 @@ def create_action_button(text, rgba, width=None, text_color=(1, 1, 1, 1)):
         bold=True,
         font_size="14sp",
     )
-    add_rounded_background(button, rgba, 14)
+    add_stateful_rounded_background(button, rgba, 14)
     return button
 
 
@@ -941,7 +971,7 @@ def create_group_header(label, is_collapsed):
         padding=(dp(16), 0),
     )
     header.bind(size=lambda inst, _value: setattr(inst, "text_size", inst.size))
-    add_rounded_background(header, app.panel_color, 18)
+    add_stateful_rounded_background(header, app.panel_color, 18)
     return header
 
 
@@ -1039,15 +1069,45 @@ class WorkoutDetailScreen(Screen):
 
 class ExerciseRow(BoxLayout):
     expanded = BooleanProperty(True)
+    HEADER_HEIGHT = dp(52)
+    ACTION_HEIGHT = dp(40)
+    SET_ROW_HEIGHT = dp(52)
+    SUMMARY_HEIGHT = dp(22)
+    OUTER_SPACING = dp(8)
+    OUTER_PADDING = dp(8)
 
     def on_kv_post(self, _base_widget):
-        self.bind(minimum_height=self.setter("height"))
-        self.ids.detail_area.bind(minimum_height=self.ids.detail_area.setter("height"))
-        self.ids.set_rows.bind(minimum_height=self.ids.set_rows.setter("height"))
+        self._detail_area = self.ids.detail_area.__self__
+        self._set_rows_container = self.ids.set_rows.__self__
+        self._collapsed_summary_label = self.ids.collapsed_summary.__self__
+        self._toggle_button = self.ids.toggle_btn.__self__
         self.refresh_exercise_options()
-        if not self.ids.set_rows.children:
+        if not self._set_rows_container.children:
             self.add_set_row()
-        self.refresh_summary()
+        else:
+            self.refresh_summary()
+
+    def _stack_height(self, child_count, row_height, spacing):
+        if child_count <= 0:
+            return 0
+        return (row_height * child_count) + (spacing * max(0, child_count - 1))
+
+    def update_layout_height(self):
+        set_count = len(self._set_rows_container.children)
+        set_rows_height = self._stack_height(set_count, self.SET_ROW_HEIGHT, self.OUTER_SPACING) if self.expanded else 0
+        summary_height = 0 if self.expanded else self.SUMMARY_HEIGHT
+        detail_height = set_rows_height if self.expanded else summary_height
+
+        self._set_rows_container.height = set_rows_height
+        self._collapsed_summary_label.height = summary_height
+        self._detail_area.height = detail_height
+        self.height = (
+            (self.OUTER_PADDING * 2)
+            + self.HEADER_HEIGHT
+            + self.ACTION_HEIGHT
+            + detail_height
+            + (self.OUTER_SPACING * 2)
+        )
 
     def refresh_exercise_options(self, selected_name=None):
         app = App.get_running_app()
@@ -1109,9 +1169,10 @@ class ExerciseRow(BoxLayout):
 
     def add_set_row(self, reps="", weights=""):
         row = ExerciseSetRow()
+        row.exercise_row = self
         row.ids.reps.text = reps
         row.ids.weights.text = weights
-        self.ids.set_rows.add_widget(row)
+        self._set_rows_container.add_widget(row)
         self.expanded = True
         self.refresh_summary()
 
@@ -1128,25 +1189,22 @@ class ExerciseRow(BoxLayout):
         self.refresh_summary()
 
     def get_set_rows(self):
-        return self.ids.set_rows.children[::-1]
+        return self._set_rows_container.children[::-1]
 
     def refresh_summary(self):
-        set_count = len(self.ids.set_rows.children)
-        self.ids.toggle_btn.text = "Hide" if self.expanded else "Show"
-        self.ids.collapsed_summary.text = f"{set_count} set{'s' if set_count != 1 else ''} ready to edit"
-        detail_area = self.ids.detail_area
-        set_rows = self.ids.set_rows
-        collapsed_summary = self.ids.collapsed_summary
-
-        detail_area.clear_widgets()
+        set_count = len(self._set_rows_container.children)
+        self._toggle_button.text = "Hide" if self.expanded else "Show"
+        self._collapsed_summary_label.text = f"{set_count} set{'s' if set_count != 1 else ''} ready to edit"
+        self._detail_area.clear_widgets()
         if self.expanded:
-            collapsed_summary.opacity = 0
-            collapsed_summary.height = 0
-            detail_area.add_widget(set_rows)
+            self._set_rows_container.opacity = 1
+            self._collapsed_summary_label.opacity = 0
+            self._detail_area.add_widget(self._set_rows_container)
         else:
-            collapsed_summary.opacity = 1
-            collapsed_summary.height = dp(22)
-            detail_area.add_widget(collapsed_summary)
+            self._set_rows_container.opacity = 0
+            self._collapsed_summary_label.opacity = 1
+            self._detail_area.add_widget(self._collapsed_summary_label)
+        self.update_layout_height()
 
     def remove_self(self):
         if self.parent:
@@ -1154,11 +1212,21 @@ class ExerciseRow(BoxLayout):
 
 
 class ExerciseSetRow(BoxLayout):
+    exercise_row = None
+
     def remove_self(self):
         parent = self.parent
         if not parent:
             return
-        exercise_row = parent.parent
+        exercise_row = self.exercise_row
+        if exercise_row is None:
+            ancestor = parent
+            while ancestor is not None and not isinstance(ancestor, ExerciseRow):
+                ancestor = ancestor.parent
+            exercise_row = ancestor
+        if exercise_row is None:
+            parent.remove_widget(self)
+            return
         if len(parent.children) <= 1:
             exercise_row.add_set_row()
         self.parent.remove_widget(self)

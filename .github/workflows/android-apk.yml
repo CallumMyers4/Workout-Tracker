@@ -6,7 +6,7 @@ on:
     branches:
       - main
       - master
-      - fixDriveIntegration
+      - fixNewWorkoutLimits
 
 jobs:
   preflight:
