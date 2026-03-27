@@ -87,13 +87,16 @@ jobs:
           test -f buildozer.spec
 
       - name: Inject optional Drive OAuth secret
-        if: ${{ secrets.DRIVE_OAUTH_CLIENT_SECRET != '' }}
+        env:
+          DRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.DRIVE_OAUTH_CLIENT_SECRET }}
         run: |
-          @'
+          if ($env:DRIVE_OAUTH_CLIENT_SECRET) {
+            @"
           {
-            "client_secret": "${{ secrets.DRIVE_OAUTH_CLIENT_SECRET }}"
+            "client_secret": "$env:DRIVE_OAUTH_CLIENT_SECRET"
           }
-          '@ | Set-Content -Path drive_oauth_secret.json
+          "@ | Set-Content -Path drive_oauth_secret.json
+          }
         shell: pwsh
 
       - name: Build debug APK
