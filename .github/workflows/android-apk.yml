@@ -6,7 +6,7 @@ on:
     branches:
       - main
       - master
-      - mobileApp
+      - fixDriveIntegration
 
 jobs:
   preflight:
@@ -86,26 +86,101 @@ jobs:
           ls -la
           test -f buildozer.spec
 
-      - name: Inject optional Drive OAuth secret
+      - name: Build APK
         env:
-          DRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.DRIVE_OAUTH_CLIENT_SECRET }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_ALIAS_PASSWORD: ${{ secrets.ANDROID_KEY_ALIAS_PASSWORD }}
         run: |
-          if ($env:DRIVE_OAUTH_CLIENT_SECRET) {
-            @"
-          {
-            "client_secret": "$env:DRIVE_OAUTH_CLIENT_SECRET"
+          if (
+            $env:ANDROID_KEYSTORE_BASE64 -and
+            $env:ANDROID_KEYSTORE_PASSWORD -and
+            $env:ANDROID_KEY_ALIAS -and
+            $env:ANDROID_KEY_ALIAS_PASSWORD
+          ) {
+            Write-Host "Building signed release APK with the repository keystore."
+            [IO.File]::WriteAllBytes(
+              (Join-Path $pwd 'release.keystore'),
+              [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64)
+            )
+            $env:P4A_RELEASE_KEYSTORE = (Join-Path $pwd 'release.keystore')
+            $env:P4A_RELEASE_KEYSTORE_PASSWD = $env:ANDROID_KEYSTORE_PASSWORD
+            $env:P4A_RELEASE_KEYALIAS = $env:ANDROID_KEY_ALIAS
+            $env:P4A_RELEASE_KEYALIAS_PASSWD = $env:ANDROID_KEY_ALIAS_PASSWORD
+            buildozer -v android release
           }
-          "@ | Set-Content -Path drive_oauth_secret.json
+          else {
+            Write-Host "Building debug APK because release-signing secrets are missing."
+            buildozer -v android debug
           }
         shell: pwsh
 
-      - name: Build debug APK
+      - name: Show build outputs
+        if: always()
         run: |
-          buildozer -v android debug
+          pwd
+          if [ -d bin ]; then
+            echo "bin directory contents:"
+            ls -la bin
+          else
+            echo "bin directory was not created."
+          fi
+        shell: bash
 
-      - name: Upload APK artifact
+      - name: Convert AAB to universal APK
+        if: success()
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_ALIAS_PASSWORD: ${{ secrets.ANDROID_KEY_ALIAS_PASSWORD }}
+        run: |
+          $aab = Get-ChildItem -Path bin -Filter *.aab | Select-Object -First 1
+          if (-not $aab) {
+            Write-Host "No AAB found, skipping bundletool conversion."
+            exit 0
+          }
+
+          if (-not (Test-Path (Join-Path $pwd 'release.keystore'))) {
+            Write-Host "release.keystore is not present, skipping bundletool conversion."
+            exit 0
+          }
+
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/google/bundletool/releases/latest"
+          $asset = $release.assets | Where-Object { $_.name -like "bundletool-all-*.jar" } | Select-Object -First 1
+          if (-not $asset) {
+            throw "Could not find a bundletool jar in the latest GitHub release."
+          }
+
+          Write-Host "Downloading bundletool asset: $($asset.name)"
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile (Join-Path $pwd $asset.name)
+
+          java -jar (Join-Path $pwd $asset.name) build-apks `
+            --bundle=$($aab.FullName) `
+            --output=$((Join-Path $pwd 'bin\\workouttracker-universal.apks')) `
+            --mode=universal `
+            --overwrite `
+            --ks=$((Join-Path $pwd 'release.keystore')) `
+            --ks-pass=pass:$env:ANDROID_KEYSTORE_PASSWORD `
+            --ks-key-alias=$env:ANDROID_KEY_ALIAS `
+            --key-pass=pass:$env:ANDROID_KEY_ALIAS_PASSWORD
+
+          Expand-Archive `
+            -Path (Join-Path $pwd 'bin\\workouttracker-universal.apks') `
+            -DestinationPath (Join-Path $pwd 'bin\\workouttracker-universal') `
+            -Force
+
+          Copy-Item `
+            -Path (Join-Path $pwd 'bin\\workouttracker-universal\\universal.apk') `
+            -Destination (Join-Path $pwd 'bin\\Workout_Tracker_universal.apk') `
+            -Force
+        shell: pwsh
+
+      - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
-          name: workout-tracker-apk
-          path: bin/*.apk
+          name: workout-tracker-android-package
+          path: |
+            bin/*.apk
+            bin/*.aab
           if-no-files-found: error

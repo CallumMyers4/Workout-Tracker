@@ -771,6 +771,22 @@ def format_date_display(date_text):
     return parsed.strftime("%d %b %Y")
 
 
+def parse_editor_date(date_text):
+    for fmt in ("%d-%m-%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(date_text, fmt)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def format_editor_date(date_text):
+    parsed = parse_editor_date(date_text)
+    if not parsed:
+        return datetime.now().strftime("%d-%m-%Y")
+    return parsed.strftime("%d-%m-%Y")
+
+
 def get_choice_label(choices, value):
     for label, key in choices:
         if key == value:
@@ -1055,7 +1071,7 @@ class ExerciseRow(BoxLayout):
         add_rounded_background(content, app.card_color, 22)
         content.add_widget(create_themed_label("Choose an exercise", font_size="16sp", bold=True, height=28))
 
-        option_list = GridLayout(cols=1, size_hint_y=None, spacing=dp(8), padding=[0, 0, 0, dp(4)])
+        option_list = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(8), padding=[0, 0, 0, 0])
         option_list.bind(minimum_height=option_list.setter("height"))
         for option in options:
             choice = create_action_button(option, app.panel_color, text_color=app.text_color)
@@ -1162,7 +1178,7 @@ class WorkoutEditorScreen(Screen):
 
     def open_date_picker(self):
         app = App.get_running_app()
-        current = parse_workout_date(self.ids.workout_date.text.strip()) or datetime.now()
+        current = parse_editor_date(self.ids.workout_date.text.strip()) or datetime.now()
 
         content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(12))
         add_rounded_background(content, app.card_color, 22)
@@ -1242,7 +1258,7 @@ class WorkoutEditorScreen(Screen):
             except ValueError:
                 app.show_popup("Workout Date", "Please choose a valid calendar date.")
                 return
-            self.ids.workout_date.text = selected.strftime("%Y-%m-%d")
+            self.ids.workout_date.text = selected.strftime("%d-%m-%Y")
             popup.dismiss()
 
         today_btn.bind(on_release=set_today)
@@ -1281,7 +1297,7 @@ class WorkoutEditorScreen(Screen):
         self.editing_id = workout_id
         _, name, date = workout
         self.ids.workout_name.text = name
-        self.ids.workout_date.text = date
+        self.ids.workout_date.text = format_editor_date(date)
         self.ids.exercise_rows.clear_widgets()
 
         exercises = app.db.get_exercises_for_workout(workout_id)
@@ -1299,7 +1315,7 @@ class WorkoutEditorScreen(Screen):
     def load_draft(self, draft):
         self.editing_id = None
         self.ids.workout_name.text = draft.get("workout_name", "")
-        self.ids.workout_date.text = draft.get("workout_date", datetime.now().strftime("%Y-%m-%d"))
+        self.ids.workout_date.text = format_editor_date(draft.get("workout_date", datetime.now().strftime("%Y-%m-%d")))
         self.ids.exercise_rows.clear_widgets()
 
         exercises = draft.get("exercises", [])
@@ -1312,7 +1328,7 @@ class WorkoutEditorScreen(Screen):
     def reset_new_workout(self):
         self.editing_id = None
         self.ids.workout_name.text = ""
-        self.ids.workout_date.text = datetime.now().strftime("%Y-%m-%d")
+        self.ids.workout_date.text = datetime.now().strftime("%d-%m-%Y")
         self.ids.exercise_rows.clear_widgets()
         self.add_exercise_row()
 
@@ -1330,7 +1346,7 @@ class WorkoutEditorScreen(Screen):
 
         return {
             "workout_name": self.ids.workout_name.text,
-            "workout_date": self.ids.workout_date.text or datetime.now().strftime("%Y-%m-%d"),
+            "workout_date": self.ids.workout_date.text or datetime.now().strftime("%d-%m-%Y"),
             "exercises": exercises,
         }
 
@@ -1342,8 +1358,9 @@ class WorkoutEditorScreen(Screen):
             self.show_error("Workout name is required.")
             return None
 
-        if parse_workout_date(date_text) is None:
-            self.show_error("Date must be in YYYY-MM-DD format.")
+        parsed_date = parse_editor_date(date_text)
+        if parsed_date is None:
+            self.show_error("Date must be in DD-MM-YYYY format.")
             return None
 
         exercises = []
@@ -1381,7 +1398,7 @@ class WorkoutEditorScreen(Screen):
 
         return {
             "workout_name": name,
-            "workout_date": date_text,
+            "workout_date": parsed_date.strftime("%Y-%m-%d"),
             "exercises": exercises,
         }
 
@@ -1582,6 +1599,8 @@ class WorkoutApp(App):
         self.drive_error = ""
         try:
             self.drive_helper = GoogleDriveHelper(auto_login=False)
+            if self.drive_helper.has_saved_android_token():
+                self.drive_connected = True
         except Exception as exc:
             self.drive_error = str(exc)
         self.pending_drive_sign_in = False
@@ -1820,8 +1839,8 @@ class WorkoutApp(App):
             self.sync_status_text = "Connected to Google Drive. Backups and restores are ready."
             self.drive_action_label = "Connected"
         elif self.pending_drive_sign_in:
-            self.sync_status_text = "Finish Google approval in your browser, then tap Finish Sign In."
-            self.drive_action_label = "Finish Sign In"
+            self.sync_status_text = "Waiting for Google authorization to finish."
+            self.drive_action_label = "Signing In..."
         else:
             self.sync_status_text = message
             self.drive_action_label = "Sign In"
@@ -1829,13 +1848,35 @@ class WorkoutApp(App):
     def show_popup(self, title, message):
         content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(12))
         add_rounded_background(content, self.card_color, 22)
-        content.add_widget(create_themed_label(message, font_size="14sp", color=self.text_color, height=60))
+
+        scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False, bar_width=dp(4))
+        message_label = Label(
+            text=message,
+            font_size="14sp",
+            color=self.text_color,
+            size_hint_y=None,
+            halign="left",
+            valign="top",
+        )
+
+        def update_message_layout(instance, _value):
+            if instance.width <= 0:
+                return
+            instance.text_size = (instance.width, None)
+            texture = instance.texture_size
+            instance.height = max(dp(72), texture[1] + dp(8))
+
+        message_label.bind(width=update_message_layout, texture_size=update_message_layout)
+        Clock.schedule_once(lambda _dt: update_message_layout(message_label, None), 0)
+        scroll.add_widget(message_label)
+        content.add_widget(scroll)
+
         close_btn = create_action_button("Close", self.primary_color)
         content.add_widget(close_btn)
         popup = Popup(
             title=title,
             content=content,
-            size_hint=(0.84, 0.32),
+            size_hint=(0.88, 0.5),
             separator_color=self.primary_color,
             title_color=self.text_color,
             background_color=(0, 0, 0, 0.75 if self.theme_mode == "dark" else 0.4),
@@ -1905,7 +1946,7 @@ class WorkoutApp(App):
             content.add_widget(create_themed_label("No exercises in the library yet.", font_size="15sp", bold=True, height=28))
             content.add_widget(create_themed_label("Save a workout or add one manually below.", font_size="14sp", color=self.muted_text_color, height=24))
         else:
-            scroll = GridLayout(cols=1, size_hint_y=None, spacing=dp(8), padding=[0, 0, 0, dp(4)])
+            scroll = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(8), padding=[0, 0, 0, 0])
             scroll.bind(minimum_height=scroll.setter("height"))
             for exercise_id, name, goal in exercises:
                 row = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(8))
@@ -2091,24 +2132,34 @@ class WorkoutApp(App):
                 self.drive_error = ""
 
             if "ANDROID_ARGUMENT" in os.environ or "ANDROID_PRIVATE" in os.environ:
-                if not self.pending_drive_sign_in:
-                    flow = self.drive_helper.start_android_login()
-                    self.pending_drive_sign_in = True
-                    self.refresh_sync_status()
-                    verification_url = flow.get("auth_url", "")
-                    if verification_url:
-                        webbrowser.open(verification_url)
-                    self.show_popup(
-                        "Google Drive Sign-In",
-                        "Your browser has opened for Google sign-in.\n\nApprove access there, then return here and tap Finish Sign In.",
-                    )
-                else:
-                    self.drive_helper.finish_android_login()
-                    self.pending_drive_sign_in = False
-                    self.drive_connected = True
-                    self.drive_error = ""
-                    self.refresh_sync_status()
-                    self.show_popup("Google Drive", "Signed in successfully. Backups are ready.")
+                self.pending_drive_sign_in = True
+                self.refresh_sync_status()
+
+                def on_success(_access_token):
+                    def finalize(_dt):
+                        self.pending_drive_sign_in = False
+                        self.drive_connected = True
+                        self.drive_error = ""
+                        self.refresh_sync_status()
+                        self.show_popup("Google Drive", "Signed in successfully. Backups are ready.")
+
+                    Clock.schedule_once(finalize, 0)
+
+                def on_failure(message):
+                    def finalize(_dt):
+                        self.pending_drive_sign_in = False
+                        self.drive_connected = False
+                        self.drive_error = message
+                        self.refresh_sync_status()
+                        self.show_popup("Google Drive", message)
+
+                    Clock.schedule_once(finalize, 0)
+
+                self.drive_helper.start_native_android_authorization(on_success, on_failure)
+                self.show_popup(
+                    "Google Drive Sign-In",
+                    "Google's native authorization sheet should appear now.\n\nIf it does not, wait a moment and try again.",
+                )
                 return
 
             self.drive_helper.login()
@@ -2118,6 +2169,7 @@ class WorkoutApp(App):
             self.refresh_sync_status()
             self.show_popup("Google Drive", "Signed in successfully. Backups are ready.")
         except Exception as exc:
+            self.pending_drive_sign_in = False
             self.drive_connected = False
             self.drive_error = str(exc)
             self.refresh_sync_status()
