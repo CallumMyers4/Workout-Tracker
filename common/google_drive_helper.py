@@ -122,7 +122,7 @@ def get_android_auth_modules():
 class GoogleDriveHelper:
     def __init__(
         self,
-        credentials_name="credentials.json",
+        credentials_name="config/credentials.json",
         token_name="token.pickle",
         auto_login=True,
     ):
@@ -181,8 +181,8 @@ class GoogleDriveHelper:
         except RuntimeError as exc:
             return False, str(exc)
 
-        if not os.path.exists(resource_path("credentials.json")):
-            return False, "Desktop Google Drive sign-in needs a local credentials.json file."
+        if not os.path.exists(resource_path("config/credentials.json")):
+            return False, "Desktop Google Drive sign-in needs a local config/credentials.json file."
 
         return True, "Google Drive sync is available."
 

@@ -1,8 +1,8 @@
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget, QHBoxLayout, QMessageBox, QDateEdit
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget, QMessageBox, QDateEdit
 from PyQt5.QtCore import QDate
 
-from db_helper import DBHelper
-from exercise_entry import ExerciseEntry
+from common.db_helper import DBHelper
+from desktop_app.exercise_entry import ExerciseEntry
 
 #Class to create a new workout or edit an existing one
 class WorkoutEditor(QDialog):

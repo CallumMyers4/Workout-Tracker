@@ -11,8 +11,8 @@ def run_mobile_app():
 def run_desktop_app():
     from PyQt5.QtWidgets import QApplication
 
-    from db_helper import DBHelper
-    from workout_tracker import WorkoutTracker
+    from common.db_helper import DBHelper
+    from desktop_app.workout_tracker import WorkoutTracker
 
     app = QApplication(sys.argv)
     db = DBHelper()

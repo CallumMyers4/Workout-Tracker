@@ -4,7 +4,7 @@ import sqlite3
 #Class for managing the database
 class DBHelper:
     #Initialize the database connection
-    def __init__(self, db_path="workouts.db"):
+    def __init__(self, db_path="data/workouts.db"):
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
         self.conn.execute("PRAGMA foreign_keys = ON")

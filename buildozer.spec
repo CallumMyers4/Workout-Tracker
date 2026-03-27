@@ -9,7 +9,7 @@ package.domain = org.callu
 source.dir = .
 source.include_exts = py,kv,png,jpg,jpeg,ico,json,db,txt
 source.exclude_dirs = .git,build,dist,__pycache__
-source.exclude_patterns = *.pyc,*.pyo,token.pickle,token_android.json,credentials.json,drive_oauth_config.json,drive_oauth_secret.json,*.keystore,*.jks
+source.exclude_patterns = *.pyc,*.pyo,token.pickle,token_android.json,credentials.json,*.keystore,*.jks
 
 # Versioning
 version = 1.0
@@ -24,17 +24,19 @@ orientation = portrait
 fullscreen = 0
 
 # Android
-android.api = 34
+android.api = 35
 android.minapi = 26
-android.sdk = 34
 android.ndk = 25b
 android.archs = arm64-v8a
 android.accept_sdk_license = True
+android.gradle_options = org.gradle.jvmargs=-Xmx2048m
 android.permissions = INTERNET
 android.gradle_dependencies = com.google.android.gms:play-services-auth:21.5.1
+android.compile_attributes = True
+android.target_api = 35
 
 # Keep the starter database available to the app package.
-android.add_assets = workouts.db:.
+android.add_assets = data/workouts.db:.
 
 # Packaging
 presplash_color = #0f1420

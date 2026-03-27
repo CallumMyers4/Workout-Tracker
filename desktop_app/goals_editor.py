@@ -3,9 +3,7 @@ from PyQt5.QtWidgets import (
     QHeaderView, QAbstractItemView, QMessageBox
 )
 from PyQt5.QtCore import Qt
-import matplotlib.pyplot as plt
-from exercise_graph import ExerciseGraph
-from exercise_graph import ExerciseProgressGraph
+from desktop_app.exercise_graph import ExerciseProgressGraph
 
 class GoalsEditor(QDialog):
     def __init__(self, db, parent=None):

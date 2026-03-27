@@ -132,6 +132,6 @@ After that one-time switch, future signed builds can be installed in place with:
 ## Notes
 
 - `credentials.json` is for the desktop app only. Do not commit it and do not bundle it into the Android APK.
-- `drive_oauth_config.json` and `drive_oauth_secret.json` are no longer needed for Android sign-in.
+- `drive_oauth_config.json` and `drive_oauth_secret.json` have been removed as they are no longer needed for Android sign-in.
 - Android Google Drive sign-in now uses the native Google authorization flow. Each user signs into their own Google account.
 - The Android Drive token is stored in the app's local data, so users should not need to sign in again after every launch unless the app data is cleared or the token is revoked.

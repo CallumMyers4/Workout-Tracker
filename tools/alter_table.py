@@ -1,4 +1,4 @@
-from db_helper import DBHelper
+from common.db_helper import DBHelper
 
 #Clean up exercises not linked to any workout
 def cleanup_orphaned_exercises(db):
@@ -25,6 +25,6 @@ def print_all_tables(db):
 
 #Main function to run the cleanup and print tables
 if __name__ == "__main__":
-    db = DBHelper("workouts.db")
+    db = DBHelper()
     cleanup_orphaned_exercises(db)
     print_all_tables(db)

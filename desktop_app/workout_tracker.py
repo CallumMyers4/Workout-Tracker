@@ -1,11 +1,11 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QTableWidget, QTableWidgetItem,
-    QHeaderView, QAbstractItemView, QMessageBox, QHBoxLayout, QMenu, QInputDialog
+    QHeaderView, QAbstractItemView, QMessageBox, QHBoxLayout, QMenu
 )
 from PyQt5.QtCore import Qt, QDate
-from workout_editor import WorkoutEditor
-from goals_editor import GoalsEditor
-from google_drive_helper import GoogleDriveHelper
+from desktop_app.workout_editor import WorkoutEditor
+from desktop_app.goals_editor import GoalsEditor
+from common.google_drive_helper import GoogleDriveHelper
 
 class WorkoutTracker(QWidget):
     def __init__(self, db_helper):
@@ -389,7 +389,7 @@ class WorkoutTracker(QWidget):
             QMessageBox.information(
                 self,
                 "Google Drive",
-                f"Downloaded successfully:\n" + "\n".join(downloaded) +
+                "Downloaded successfully:\n" + "\n".join(downloaded) +
                 "\n\nRestart the app to reload updated databases."
             )
         except FileNotFoundError:
