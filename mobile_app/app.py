@@ -310,7 +310,7 @@ class WorkoutApp(App):
                 "name": name or "Untitled Workout",
                 "date": date or "",
                 "exercise_count": exercise_count or 0,
-                "exercise_names": ", ".join([item.strip() for item in exercise_names.split(",") if item.strip()][:4]),
+                "exercise_names": ", ".join([item.strip() for item in exercise_names.split(",")]),
                 "parsed_date": parse_workout_date(date),
             })
         return summaries
@@ -520,8 +520,11 @@ class WorkoutApp(App):
         close_btn.bind(on_release=lambda *_args: popup.dismiss())
         popup.open()
 
-    def show_list(self):
-        self.sm.current = "list"
+    def show_list(self, check=True):
+        if check == True and self.active_workout_id != None:
+            self.show_detail(self.active_workout_id)
+        else:
+            self.sm.current = "list"
 
     def show_goals(self):
         self.sm.current = "goals"

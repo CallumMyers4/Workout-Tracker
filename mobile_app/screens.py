@@ -179,10 +179,12 @@ class WorkoutDetailScreen(Screen):
             return
 
         for ex_name, sets, reps, weight in exercises:
-            card = create_themed_card(height=96)
+            card = create_themed_card(height=40 + sets * 30)
             card.add_widget(create_themed_label(ex_name, font_size="17sp", bold=True, height=26))
-            card.add_widget(create_themed_label(f"{sets} sets", font_size="14sp", color=app.muted_text_color, height=20))
-            card.add_widget(create_themed_label(f"Reps: {reps}   |   Weight: {weight}", font_size="14sp", color=app.muted_text_color, height=22))
+            for i in range(sets):
+                rep = reps.split(",")[i] if i < len(reps.split(",")) else ""
+                weight_value = weight.split(",")[i] if i < len(weight.split(",")) else ""
+                card.add_widget(create_themed_label(f"Set {i + 1}: {rep}x{weight_value}kg", font_size="14sp", color=app.muted_text_color, height=22))
             self.ids.exercise_list.add_widget(card)
 
 
@@ -620,7 +622,7 @@ class GoalsScreen(Screen):
             return
 
         for exercise_id, name, goal in goals:
-            highest_weight = app.db.get_highest_weight_for_exercise(name)
+            highest_weight, best_reps = app.db.get_highest_weight_for_exercise(name)
             percent = "N/A" if goal in (None, 0) else f"{(highest_weight / goal * 100):.1f}%"
 
             card = create_themed_card()
@@ -632,7 +634,7 @@ class GoalsScreen(Screen):
             )
             card.add_widget(title)
             card.add_widget(create_themed_label(f"Goal: {goal if goal is not None else 'none'} kg", font_size="14sp", color=app.muted_text_color, height=22))
-            card.add_widget(create_themed_label(f"Best: {highest_weight} kg   |   Progress: {percent}", font_size="14sp", color=app.muted_text_color, height=22))
+            card.add_widget(create_themed_label(f"Best Set: {best_reps}x{highest_weight} kg   |   Progress: {percent}", font_size="14sp", color=app.muted_text_color, height=22))
             action = create_action_button("Update Goal", app.primary_color)
             action.bind(on_release=lambda *_args, eid=exercise_id: self.show_goal_input(eid))
             card.add_widget(action)

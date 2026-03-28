@@ -197,33 +197,33 @@ class DBHelper:
         c.execute("UPDATE exercises_catalog SET goal = ? WHERE id = ?", (new_goal, exercise_id))
         self.conn.commit()
 
-    #Get the highest weight for a specific exercise
+    #Get the best set per exercise
     def get_highest_weight_for_exercise(self, exercise_name):
-        #Get all weights for the exercise
         c = self.conn.cursor()
-        c.execute("SELECT weight FROM exercises WHERE name = ?", (exercise_name,))
-        all_weights = c.fetchall()  # List of tuples, e.g. [('50,60,60,50',), ('40,45',), ...]
+
+        c.execute(
+            "SELECT weight, reps FROM exercises WHERE name = ?",
+            (exercise_name,),
+        )
+        rows = c.fetchall()  # [(weight_str, reps_str), ...]
 
         max_weight = 0.0
+        max_reps = 0
 
-        #Iterate through all weights
-        for (weight_str,) in all_weights:
-            #If the weight string is not empty
-            if weight_str:
-                #Split the CSV string into floats
-                weights = [float(w.strip()) for w in weight_str.split(",") if w.strip()]
-                
-                #If there are weights in the list
-                if weights:
-                    #Get the maximum weight in this record
-                    max_in_record = max(weights)
+        for weight_str, reps_str in rows:
+            if not weight_str or not reps_str:
+                continue
 
-                    #If the maximum weight in this record is greater than the current max weight
-                    if max_in_record > max_weight:
-                        #Update the max weight
-                        max_weight = max_in_record
+            weights = [float(w.strip()) for w in weight_str.split(",") if w.strip()]
+            reps = [int(r.strip()) for r in reps_str.split(",") if r.strip()]
 
-        return max_weight
+            # Ensure alignment safety
+            for w, r in zip(weights, reps):
+                if w > max_weight:
+                    max_weight = w
+                    max_reps = r
+
+        return max_weight, max_reps
  
     #List all weights for a specific exercise
     def list_exercise_weights(self, exercise_name):

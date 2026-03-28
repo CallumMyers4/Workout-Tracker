@@ -248,7 +248,7 @@ KV = """
             spacing: dp(6)
             AccentButton:
                 text: 'Home'
-                on_release: app.show_list()
+                on_release: app.show_list(check=False)
             GhostButton:
                 text: 'New Workout'
                 on_release: app.open_editor()
@@ -276,7 +276,7 @@ KV = """
             spacing: dp(10)
             GhostButton:
                 text: 'Back'
-                on_release: app.show_list()
+                on_release: app.show_list(check=False)
             PrimaryButton:
                 text: 'Edit'
                 on_release: app.open_editor(app.active_workout_id)
@@ -333,7 +333,7 @@ KV = """
             spacing: dp(6)
             AccentButton:
                 text: 'Home'
-                on_release: app.show_list()
+                on_release: app.show_list(check=False)
             GhostButton:
                 text: 'New Workout'
                 on_release: app.open_editor()
@@ -583,7 +583,7 @@ KV = """
             height: dp(48)
             spacing: dp(10)
             GhostButton:
-                text: 'Back'
+                text: 'Home'
                 on_release: app.show_list()
             GhostButton:
                 text: 'Settings'
@@ -652,9 +652,6 @@ KV = """
             cols: 2
             height: dp(48)
             spacing: dp(10)
-            GhostButton:
-                text: 'Back'
-                on_release: app.show_list()
             AccentButton:
                 text: 'Theme: ' + app.theme_label
                 on_release: root.toggle_theme()
