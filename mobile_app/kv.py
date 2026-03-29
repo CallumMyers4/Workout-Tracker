@@ -705,7 +705,7 @@ KV = """
                         size_hint_y: None
                         height: dp(46)
                         spacing: dp(8)
-                        PrimaryButton:
+                        AccentButton:
                             text: app.drive_action_label
                             disabled: app.pending_drive_sign_in or app.pending_drive_backup or app.pending_drive_restore
                             on_release: root.sign_in_drive()

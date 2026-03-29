@@ -525,6 +525,7 @@ class WorkoutApp(App):
             self.show_detail(self.active_workout_id)
         else:
             self.sm.current = "list"
+            self.active_workout_id = None
 
     def show_goals(self):
         self.sm.current = "goals"
