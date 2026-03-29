@@ -193,7 +193,7 @@ class ExerciseRow(BoxLayout):
             size_hint=(0.9, 0.72),  # 90% width, 72% height of screen
             separator_color=app.primary_color,
             title_color=app.text_color,
-            background_color=(0, 0, 0, 0.75 if app.theme_mode == "dark" else 0.4),  # Semi-transparent overlay
+            background_color=app.overlay_color,  # Theme-aware overlay
         )
         self._picker_popup = popup
 

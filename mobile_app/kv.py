@@ -230,8 +230,10 @@ KV = """
 
         # Scrollable workout list
         ScrollView:
+            id: workout_scroll
             do_scroll_x: False              # Vertical scrolling only
             size_hint_y: 1                  # Take remaining space
+            on_scroll_y: root.maybe_load_more(self.scroll_y)
             BoxLayout:
                 id: workout_list
                 orientation: 'vertical'
@@ -359,7 +361,7 @@ KV = """
             cols: 2 if app.compact_mode else 3
             height: dp(104) if app.compact_mode else dp(48)
             spacing: dp(10)
-            GhostButton:
+            DangerButton:
                 text: 'Clear'
                 on_release: root.confirm_clear_workout()
             GhostButton:
@@ -705,7 +707,7 @@ KV = """
                         size_hint_y: None
                         height: dp(46)
                         spacing: dp(8)
-                        PrimaryButton:
+                        AccentButton:
                             text: app.drive_action_label
                             disabled: app.pending_drive_sign_in or app.pending_drive_backup or app.pending_drive_restore
                             on_release: root.sign_in_drive()

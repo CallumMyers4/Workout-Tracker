@@ -42,6 +42,7 @@ class WorkoutApp(App):
     primary_color = ListProperty(THEMES["light"]["primary"])
     accent_color = ListProperty(THEMES["light"]["accent"])
     danger_color = ListProperty(THEMES["light"]["danger"])
+    overlay_color = ListProperty(THEMES["light"]["overlay"])
 
     theme_mode = StringProperty("light")
     theme_label = StringProperty("Light")
@@ -256,6 +257,8 @@ class WorkoutApp(App):
         self.primary_color = theme["primary"]
         self.accent_color = theme["accent"]
         self.danger_color = theme["danger"]
+        self.overlay_color = theme["overlay"]
+        Window.clearcolor = theme["bg"]
         self.theme_label = self.theme_mode.title()
 
     def toggle_theme(self):
@@ -368,7 +371,9 @@ class WorkoutApp(App):
         grouped = OrderedDict()
         for item in workouts:
             parsed = item["parsed_date"]
-            if parsed is None:
+            if self.group_mode == "name":
+                label = item["name"] or "Untitled Workout"
+            elif parsed is None:
                 label = "Unknown Date"
             elif self.group_mode == "month":
                 label = parsed.strftime("%B %Y")
@@ -515,7 +520,7 @@ class WorkoutApp(App):
             size_hint=(0.88, 0.5),
             separator_color=self.primary_color,
             title_color=self.text_color,
-            background_color=(0, 0, 0, 0.75 if self.theme_mode == "dark" else 0.4),
+            background_color=self.overlay_color,
         )
         close_btn.bind(on_release=lambda *_args: popup.dismiss())
         popup.open()
@@ -525,6 +530,7 @@ class WorkoutApp(App):
             self.show_detail(self.active_workout_id)
         else:
             self.sm.current = "list"
+            self.active_workout_id = None
 
     def show_goals(self):
         self.sm.current = "goals"
@@ -544,11 +550,24 @@ class WorkoutApp(App):
     def open_editor(self, workout_id=None):
         editor = self.sm.get_screen("editor")
         if workout_id is None:
-            if self.editor_draft:
+            if self.sm.current == "editor" and editor.editing_id is None and editor.ids.exercise_rows.children:
+                # If we're already in the new-workout editor, snapshot live values first.
+                try:
+                    self.editor_draft = editor.build_draft()
+                    editor.load_draft(self.editor_draft)
+                except Exception:
+                    editor.reset_new_workout()
+            elif self.editor_draft:
                 editor.load_draft(self.editor_draft)
-            elif not editor.ids.exercise_rows.children or editor.editing_id is not None:
+            elif editor.editing_id is None and editor.ids.exercise_rows.children:
+                # Rebuild from current values so reopening the screen never reuses stale row widgets.
+                try:
+                    self.editor_draft = editor.build_draft()
+                    editor.load_draft(self.editor_draft)
+                except Exception:
+                    editor.reset_new_workout()
+            else:
                 editor.reset_new_workout()
-            # if an editor draft isn't set but editor already has entries, keep them untouched
         else:
             editor.load_workout(workout_id)
         self.sm.current = "editor"
@@ -610,7 +629,7 @@ class WorkoutApp(App):
             size_hint=(0.9, 0.72),
             separator_color=self.primary_color,
             title_color=self.text_color,
-            background_color=(0, 0, 0, 0.75 if self.theme_mode == "dark" else 0.4),
+            background_color=self.overlay_color,
         )
         add_btn.bind(on_release=lambda *_args: (popup.dismiss(), self.show_add_exercise_popup()))
         close_btn.bind(on_release=lambda *_args: popup.dismiss())
@@ -664,7 +683,7 @@ class WorkoutApp(App):
             size_hint=(0.86, 0.34),
             separator_color=self.primary_color,
             title_color=self.text_color,
-            background_color=(0, 0, 0, 0.75 if self.theme_mode == "dark" else 0.4),
+            background_color=self.overlay_color,
         )
 
         def confirm(_instance):
@@ -719,7 +738,7 @@ class WorkoutApp(App):
             size_hint=(0.88, 0.38),
             separator_color=self.primary_color,
             title_color=self.text_color,
-            background_color=(0, 0, 0, 0.75 if self.theme_mode == "dark" else 0.4),
+            background_color=self.overlay_color,
         )
 
         def confirm(_instance):
@@ -753,7 +772,7 @@ class WorkoutApp(App):
             size_hint=(0.84, 0.32),
             separator_color=self.primary_color,
             title_color=self.text_color,
-            background_color=(0, 0, 0, 0.75 if self.theme_mode == "dark" else 0.4),
+            background_color=self.overlay_color,
         )
 
         def confirm(_instance):

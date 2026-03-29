@@ -8,12 +8,9 @@
 # - "Newest": Sorts workouts by date, most recent first.
 # - "Oldest": Sorts workouts by date, oldest first.
 # - "A-Z": Sorts workouts alphabetically by name, ascending.
-# - "Z-A": Sorts workouts alphabetically by name, descending.
 SORT_CHOICES = [
     ("Newest", "newest"),
     ("Oldest", "oldest"),
-    ("A-Z", "name_asc"),
-    ("Z-A", "name_desc"),
 ]
 
 # FILTER_CHOICES: Defines the available filtering options for workout lists.
@@ -38,6 +35,7 @@ GROUP_CHOICES = [
     ("None", "none"),
     ("Month", "month"),
     ("Year", "year"),
+    ("Workout Name", "name"),
 ]
 
 # THEMES: Dictionary containing color schemes for light and dark themes.
@@ -52,6 +50,7 @@ GROUP_CHOICES = [
 # - "primary": Main accent color for buttons and highlights.
 # - "accent": Secondary accent color for positive actions.
 # - "danger": Color for error states and destructive actions.
+# - "overlay": Modal/transition scrim color layered above the current screen.
 THEMES = {
     "light": {
         "bg": [0.94, 0.96, 0.99, 1],      # Light blue-gray background
@@ -60,19 +59,21 @@ THEMES = {
         "input": [1, 1, 1, 1],            # White for input fields
         "text": [0.13, 0.18, 0.26, 1],    # Dark blue-gray for text
         "muted": [0.45, 0.52, 0.61, 1],   # Medium gray for muted text
-        "primary": [0.14, 0.45, 0.78, 1], # Blue for primary actions
-        "accent": [0.11, 0.62, 0.45, 1],  # Green for accent actions
+        "primary": [0.88, 0.91, 0.96, 1], # Blue for primary actions
+        "accent": [0.22, 0.22, 0.62, 1],  # Green for accent actions
         "danger": [0.83, 0.29, 0.29, 1],  # Red for danger/error
+        "overlay": [0.82, 0.88, 0.95, 0.72],  # Soft tinted scrim for popups/transitions
     },
     "dark": {
-        "bg": [0.08, 0.11, 0.15, 1],      # Dark blue-gray background
-        "card": [0.13, 0.16, 0.21, 1],    # Dark gray for cards
-        "panel": [0.18, 0.22, 0.28, 1],   # Medium dark gray for panels
-        "input": [0.15, 0.18, 0.24, 1],   # Dark gray for input fields
-        "text": [0.92, 0.95, 0.98, 1],    # Light gray for text
-        "muted": [0.63, 0.7, 0.79, 1],    # Medium light gray for muted text
-        "primary": [0.3, 0.61, 0.96, 1],  # Bright blue for primary actions
-        "accent": [0.18, 0.78, 0.57, 1],  # Bright green for accent actions
-        "danger": [0.93, 0.42, 0.42, 1],  # Bright red for danger/error
+        "bg": [0.08, 0.08, 0.08, 1],      # Dark blue-gray background
+        "card": [0.1, 0.1, 0.1, 1],    # Dark gray for cards
+        "panel": [0.12, 0.12, 0.12, 1],   # Medium dark gray for panels
+        "input": [0.12, 0.12, 0.12, 1],   # Dark gray for input fields
+        "text": [0.8, 0.8, 0.8, 1],    # Light gray for text
+        "muted": [0.4, 0.4, 0.4, 1],    # Medium light gray for muted text
+        "primary": [0.12, 0.12, 0.12, 1],  # Bright blue for primary actions
+        "accent": [0.05, 0.05, 0.2, 1],  # Blue for accent actions
+        "danger": [0.6, 0.22, 0.22, 1],  # Bright red for danger/error
+        "overlay": [0, 0, 0, 0.75],  # Dark scrim keeps modal focus in dark mode
     },
 }

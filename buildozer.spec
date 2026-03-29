@@ -12,7 +12,7 @@ source.exclude_dirs = .git,build,dist,__pycache__
 source.exclude_patterns = *.pyc,*.pyo,token.pickle,token_android.json,credentials.json,*.keystore,*.jks
 
 # Versioning
-version = 1.0
+version = 1.1
 
 # Requirements
 requirements = python3,kivy,certifi,pyjnius

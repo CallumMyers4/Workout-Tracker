@@ -26,10 +26,10 @@ def is_android_environment():
 
 
 def main():
-    if is_android_environment() or os.environ.get("WORKOUT_TRACKER_USE_MOBILE") == "1":
-        run_mobile_app()
-    else:
-        run_desktop_app()
+    # if is_android_environment() or os.environ.get("WORKOUT_TRACKER_USE_MOBILE") == "1":
+    run_mobile_app()
+    # else:
+    #     run_desktop_app()
 
 
 if __name__ == "__main__":
