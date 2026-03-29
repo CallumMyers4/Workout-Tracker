@@ -6,10 +6,15 @@ on:
     branches:
       - main
       - master
-      - firstMvpPolish
+      - '**'
 
 jobs:
   preflight:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '--build_mobile_apk') ||
+      github.ref == 'refs/heads/main' ||
+      github.ref == 'refs/heads/master'
     runs-on: ubuntu-22.04
     timeout-minutes: 10
 
@@ -35,6 +40,11 @@ jobs:
           python -m py_compile main.py mobile_app.py common/google_drive_helper.py common/db_helper.py
 
   build-apk:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '--build_mobile_apk') ||
+      github.ref == 'refs/heads/main' ||
+      github.ref == 'refs/heads/master'
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     needs: preflight

@@ -359,7 +359,7 @@ KV = """
             cols: 2 if app.compact_mode else 3
             height: dp(104) if app.compact_mode else dp(48)
             spacing: dp(10)
-            GhostButton:
+            DangerButton:
                 text: 'Clear'
                 on_release: root.confirm_clear_workout()
             GhostButton:

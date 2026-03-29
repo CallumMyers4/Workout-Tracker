@@ -65,14 +65,14 @@ THEMES = {
         "danger": [0.83, 0.29, 0.29, 1],  # Red for danger/error
     },
     "dark": {
-        "bg": [0.08, 0.11, 0.15, 1],      # Dark blue-gray background
-        "card": [0.13, 0.16, 0.21, 1],    # Dark gray for cards
-        "panel": [0.18, 0.22, 0.28, 1],   # Medium dark gray for panels
-        "input": [0.15, 0.18, 0.24, 1],   # Dark gray for input fields
-        "text": [0.92, 0.95, 0.98, 1],    # Light gray for text
-        "muted": [0.63, 0.7, 0.79, 1],    # Medium light gray for muted text
-        "primary": [0.3, 0.61, 0.96, 1],  # Bright blue for primary actions
-        "accent": [0.18, 0.78, 0.57, 1],  # Bright green for accent actions
-        "danger": [0.93, 0.42, 0.42, 1],  # Bright red for danger/error
+        "bg": [0.08, 0.08, 0.08, 1],      # Dark blue-gray background
+        "card": [0.1, 0.1, 0.1, 1],    # Dark gray for cards
+        "panel": [0.12, 0.12, 0.12, 1],   # Medium dark gray for panels
+        "input": [0.12, 0.12, 0.12, 1],   # Dark gray for input fields
+        "text": [0.8, 0.8, 0.8, 1],    # Light gray for text
+        "muted": [0.4, 0.4, 0.4, 1],    # Medium light gray for muted text
+        "primary": [0.12, 0.12, 0.12, 1],  # Bright blue for primary actions
+        "accent": [0.1, 0.1, 0.9, 1],  # Purple for accent actions
+        "danger": [0.8, 0.42, 0.42, 1],  # Bright red for danger/error
     },
 }
