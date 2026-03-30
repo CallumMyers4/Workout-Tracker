@@ -211,8 +211,18 @@ class WorkoutEditorScreen(Screen):
         if self.editing_id is None:
             app = App.get_running_app()
             if getattr(app, "editor_draft", None):
-                app.restore_editor_draft()
-            # otherwise keep existing editor fields as-is to avoid accidental clearing
+                self.load_draft(app.editor_draft)
+            elif self.ids.exercise_rows.children:
+                # Rebuild rows from in-memory values to recover from stale/hidden card widgets.
+                try:
+                    self.load_draft(self.build_draft())
+                except Exception:
+                    self.reset_new_workout()
+            else:
+                self.reset_new_workout()
+
+        # Force a layout refresh after transition so row heights/visibility stay consistent.
+        Clock.schedule_once(lambda _dt: self.refresh_exercise_rows_layout(), 0)
 
     def on_pre_leave(self):
         """
@@ -222,6 +232,22 @@ class WorkoutEditorScreen(Screen):
         """
         if self.editing_id is None:
             App.get_running_app().capture_editor_draft()
+
+    def refresh_exercise_rows_layout(self):
+        """
+        Refresh exercise row layouts to keep cards visible and properly sized.
+        """
+        rows = list(self.ids.exercise_rows.children)
+        if not rows and self.editing_id is None:
+            self.add_exercise_row()
+            rows = list(self.ids.exercise_rows.children)
+
+        for row in rows:
+            if hasattr(row, "refresh_summary"):
+                try:
+                    row.refresh_summary()
+                except Exception:
+                    continue
 
     def open_date_picker(self):
         """

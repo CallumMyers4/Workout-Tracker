@@ -545,11 +545,24 @@ class WorkoutApp(App):
     def open_editor(self, workout_id=None):
         editor = self.sm.get_screen("editor")
         if workout_id is None:
-            if self.editor_draft:
+            if self.sm.current == "editor" and editor.editing_id is None and editor.ids.exercise_rows.children:
+                # If we're already in the new-workout editor, snapshot live values first.
+                try:
+                    self.editor_draft = editor.build_draft()
+                    editor.load_draft(self.editor_draft)
+                except Exception:
+                    editor.reset_new_workout()
+            elif self.editor_draft:
                 editor.load_draft(self.editor_draft)
-            elif not editor.ids.exercise_rows.children or editor.editing_id is not None:
+            elif editor.editing_id is None and editor.ids.exercise_rows.children:
+                # Rebuild from current values so reopening the screen never reuses stale row widgets.
+                try:
+                    self.editor_draft = editor.build_draft()
+                    editor.load_draft(self.editor_draft)
+                except Exception:
+                    editor.reset_new_workout()
+            else:
                 editor.reset_new_workout()
-            # if an editor draft isn't set but editor already has entries, keep them untouched
         else:
             editor.load_workout(workout_id)
         self.sm.current = "editor"
