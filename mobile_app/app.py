@@ -368,7 +368,9 @@ class WorkoutApp(App):
         grouped = OrderedDict()
         for item in workouts:
             parsed = item["parsed_date"]
-            if parsed is None:
+            if self.group_mode == "name":
+                label = item["name"] or "Untitled Workout"
+            elif parsed is None:
                 label = "Unknown Date"
             elif self.group_mode == "month":
                 label = parsed.strftime("%B %Y")

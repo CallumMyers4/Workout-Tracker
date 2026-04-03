@@ -3,7 +3,7 @@
 # Each screen represents a different view or page in the app, handling user interactions
 # and displaying relevant data. Screens are managed by a ScreenManager for navigation.
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from kivy.clock import Clock
 from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
@@ -39,13 +39,25 @@ class WorkoutListScreen(Screen):
     other parts of the app.
     """
 
+    PAGE_DAYS = 14
+    UNKNOWN_DATE_PAGE_SIZE = 20
+    BOTTOM_LOAD_THRESHOLD = 0.02
+    POST_LOAD_SCROLL_Y = 0.06
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._all_workouts = []
+        self._loaded_count = 0
+        self._is_loading_more = False
+        self._bottom_load_armed = True
+
     def on_pre_enter(self):
         """
         Called just before the screen becomes active.
 
         Refreshes the workout list to ensure it shows the most current data.
         """
-        self.refresh_list()
+        self.refresh_list(reset_paging=True)
 
     def update_search(self, value):
         """
@@ -61,7 +73,7 @@ class WorkoutListScreen(Screen):
         if app.search_text != value:
             app.search_text = value
             app.save_preferences()
-            self.refresh_list()
+            self.refresh_list(reset_paging=True)
 
     def cycle_filter(self):
         """
@@ -70,7 +82,7 @@ class WorkoutListScreen(Screen):
         Updates the app's filter setting and refreshes the display.
         """
         App.get_running_app().cycle_filter()
-        self.refresh_list()
+        self.refresh_list(reset_paging=True)
 
     def cycle_sort(self):
         """
@@ -79,7 +91,7 @@ class WorkoutListScreen(Screen):
         Updates the app's sort setting and refreshes the display.
         """
         App.get_running_app().cycle_sort()
-        self.refresh_list()
+        self.refresh_list(reset_paging=True)
 
     def cycle_group(self):
         """
@@ -88,9 +100,9 @@ class WorkoutListScreen(Screen):
         Updates the app's grouping setting and refreshes the display.
         """
         App.get_running_app().cycle_group()
-        self.refresh_list()
+        self.refresh_list(reset_paging=True)
 
-    def refresh_list(self):
+    def refresh_list(self, reset_paging=True):
         """
         Rebuild the workout list display based on current filters, search, and grouping.
 
@@ -101,9 +113,17 @@ class WorkoutListScreen(Screen):
         app = App.get_running_app()
         container = self.ids.workout_list
         container.clear_widgets()
+        self._is_loading_more = False
+        self._bottom_load_armed = True
 
         # Get filtered workouts and update summary text
         workouts = app.get_filtered_workouts()
+        if reset_paging:
+            self._all_workouts = workouts
+            self._loaded_count = 0
+        else:
+            self._all_workouts = workouts
+            self._loaded_count = min(self._loaded_count, len(workouts))
         app.browse_summary = app.build_browse_summary(workouts)
 
         # Handle empty state
@@ -113,6 +133,19 @@ class WorkoutListScreen(Screen):
             empty.add_widget(create_themed_label("Try a different search, filter, or grouping option.", font_size="14sp", color=app.muted_text_color, height=24))
             container.add_widget(empty)
             return
+
+        if reset_paging and self._loaded_count == 0:
+            self._loaded_count = len(self._get_next_page())
+
+        self._render_workouts(self._all_workouts[:self._loaded_count])
+        if reset_paging:
+            Clock.schedule_once(lambda *_args: scroll_to_top(self.ids.workout_scroll), 0)
+        Clock.schedule_once(self._ensure_scrollable_content, 0)
+
+    def _render_workouts(self, workouts):
+        """Render the currently loaded workout subset."""
+        app = App.get_running_app()
+        container = self.ids.workout_list
 
         # Group workouts and create UI elements
         grouped = app.group_workouts(workouts)
@@ -130,6 +163,86 @@ class WorkoutListScreen(Screen):
             for summary in items:
                 container.add_widget(create_workout_card(summary))
 
+    def _get_next_page(self):
+        """Return the next 2-week slice of workouts from the filtered list."""
+        remaining = self._all_workouts[self._loaded_count:]
+        if not remaining:
+            return []
+
+        anchor_date = next((item["parsed_date"] for item in remaining if item["parsed_date"] is not None), None)
+        if anchor_date is None:
+            return remaining[:self.UNKNOWN_DATE_PAGE_SIZE]
+
+        oldest_allowed = anchor_date - timedelta(days=self.PAGE_DAYS - 1)
+        page = []
+        for item in remaining:
+            parsed_date = item["parsed_date"]
+            if parsed_date is not None and parsed_date < oldest_allowed:
+                break
+            page.append(item)
+        return page or remaining[:self.UNKNOWN_DATE_PAGE_SIZE]
+
+    def maybe_load_more(self, scroll_y):
+        """Append the next 2-week page when the user reaches the bottom."""
+        if scroll_y > self.BOTTOM_LOAD_THRESHOLD or self._is_loading_more:
+            return
+        if self._loaded_count >= len(self._all_workouts):
+            return
+        if not self._bottom_load_armed:
+            return
+
+        self._bottom_load_armed = False
+        self._is_loading_more = True
+        Clock.schedule_once(self._load_next_page, 0)
+
+    def _load_next_page(self, *_args):
+        """Load and render the next page of workouts."""
+        container = self.ids.workout_list
+        scroll = self.ids.workout_scroll
+        next_page = self._get_next_page()
+        if next_page:
+            self._loaded_count += len(next_page)
+            container.clear_widgets()
+            self._render_workouts(self._all_workouts[:self._loaded_count])
+            Clock.schedule_once(lambda *_dt: self._reset_bottom_trigger(scroll), 0)
+            Clock.schedule_once(self._ensure_scrollable_content, 0)
+        else:
+            self._bottom_load_armed = True
+        self._is_loading_more = False
+
+    def _ensure_scrollable_content(self, *_args):
+        """Auto-load more pages until the list is tall enough to scroll."""
+        app = App.get_running_app()
+        scroll = self.ids.workout_scroll
+        if self._is_loading_more:
+            return
+        if self._loaded_count >= len(self._all_workouts):
+            return
+        if app.group_mode != "none" and not self._has_visible_workout_cards():
+            return
+        if self.ids.workout_list.height <= scroll.height:
+            self._is_loading_more = True
+            Clock.schedule_once(self._load_next_page, 0)
+
+    def _has_visible_workout_cards(self):
+        """Return True when the currently loaded subset shows at least one expanded workout card."""
+        app = App.get_running_app()
+        grouped = app.group_workouts(self._all_workouts[:self._loaded_count])
+        for section_title, items in grouped.items():
+            if not items:
+                continue
+            if not section_title:
+                return True
+            if not app.is_group_collapsed(section_title):
+                return True
+        return False
+
+    def _reset_bottom_trigger(self, scroll):
+        """Re-arm bottom loading and move just above bottom so the next downward scroll loads once."""
+        if scroll is not None and scroll.scroll_y <= self.BOTTOM_LOAD_THRESHOLD:
+            scroll.scroll_y = self.POST_LOAD_SCROLL_Y
+        self._bottom_load_armed = True
+
     def toggle_group(self, group_name):
         """
         Toggle the collapsed/expanded state of a workout group.
@@ -139,7 +252,7 @@ class WorkoutListScreen(Screen):
         """
         app = App.get_running_app()
         app.toggle_group(group_name)
-        self.refresh_list()
+        self.refresh_list(reset_paging=False)
 
 
 class WorkoutDetailScreen(Screen):

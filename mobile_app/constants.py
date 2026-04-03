@@ -8,12 +8,9 @@
 # - "Newest": Sorts workouts by date, most recent first.
 # - "Oldest": Sorts workouts by date, oldest first.
 # - "A-Z": Sorts workouts alphabetically by name, ascending.
-# - "Z-A": Sorts workouts alphabetically by name, descending.
 SORT_CHOICES = [
     ("Newest", "newest"),
     ("Oldest", "oldest"),
-    ("A-Z", "name_asc"),
-    ("Z-A", "name_desc"),
 ]
 
 # FILTER_CHOICES: Defines the available filtering options for workout lists.
@@ -38,6 +35,7 @@ GROUP_CHOICES = [
     ("None", "none"),
     ("Month", "month"),
     ("Year", "year"),
+    ("Workout Name", "name"),
 ]
 
 # THEMES: Dictionary containing color schemes for light and dark themes.
