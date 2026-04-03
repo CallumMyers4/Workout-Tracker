@@ -59,8 +59,8 @@ THEMES = {
         "input": [1, 1, 1, 1],            # White for input fields
         "text": [0.13, 0.18, 0.26, 1],    # Dark blue-gray for text
         "muted": [0.45, 0.52, 0.61, 1],   # Medium gray for muted text
-        "primary": [0.14, 0.45, 0.78, 1], # Blue for primary actions
-        "accent": [0.11, 0.62, 0.45, 1],  # Green for accent actions
+        "primary": [0.88, 0.91, 0.96, 1], # Blue for primary actions
+        "accent": [0.22, 0.22, 0.62, 1],  # Green for accent actions
         "danger": [0.83, 0.29, 0.29, 1],  # Red for danger/error
         "overlay": [0.82, 0.88, 0.95, 0.72],  # Soft tinted scrim for popups/transitions
     },
@@ -72,8 +72,8 @@ THEMES = {
         "text": [0.8, 0.8, 0.8, 1],    # Light gray for text
         "muted": [0.4, 0.4, 0.4, 1],    # Medium light gray for muted text
         "primary": [0.12, 0.12, 0.12, 1],  # Bright blue for primary actions
-        "accent": [0.1, 0.1, 0.9, 1],  # Purple for accent actions
-        "danger": [0.8, 0.42, 0.42, 1],  # Bright red for danger/error
+        "accent": [0.05, 0.05, 0.2, 1],  # Blue for accent actions
+        "danger": [0.6, 0.22, 0.22, 1],  # Bright red for danger/error
         "overlay": [0, 0, 0, 0.75],  # Dark scrim keeps modal focus in dark mode
     },
 }
