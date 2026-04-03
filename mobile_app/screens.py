@@ -435,7 +435,7 @@ class WorkoutEditorScreen(Screen):
             size_hint=(0.9, 0.42),
             separator_color=app.primary_color,
             title_color=app.text_color,
-            background_color=(0, 0, 0, 0.75 if app.theme_mode == "dark" else 0.4),
+            background_color=app.overlay_color,
         )
 
         def set_today(_instance):
@@ -580,6 +580,7 @@ class WorkoutEditorScreen(Screen):
 
         app = App.get_running_app()
         content = BoxLayout(orientation="vertical", spacing=dp(8), padding=dp(12))
+        add_rounded_background(content, app.card_color, 22)
         content.add_widget(create_themed_label("Clear workout?", font_size="16sp", bold=True, height=26))
         content.add_widget(create_themed_label("This will clear all entries in the editor.", font_size="14sp", height=24))
 
@@ -596,7 +597,7 @@ class WorkoutEditorScreen(Screen):
             size_hint=(0.8, 0.32),
             separator_color=app.primary_color,
             title_color=app.text_color,
-            background_color=(0, 0, 0, 0.75 if app.theme_mode == "dark" else 0.4),
+            background_color=app.overlay_color,
         )
 
         cancel_btn.bind(on_release=lambda *_args: popup.dismiss())
@@ -817,7 +818,7 @@ class GoalsScreen(Screen):
             size_hint=(0.86, 0.38),
             separator_color=app.primary_color,
             title_color=app.text_color,
-            background_color=(0, 0, 0, 0.75 if app.theme_mode == "dark" else 0.4),
+            background_color=app.overlay_color,
         )
 
         def confirm(_instance):
@@ -895,6 +896,7 @@ class SettingsScreen(Screen):
         """
         app = App.get_running_app()
         content = BoxLayout(orientation="vertical", spacing=dp(8), padding=dp(12))
+        add_rounded_background(content, app.card_color, 22)
         content.add_widget(create_themed_label("Backup data?", font_size="16sp", bold=True, height=26))
         content.add_widget(create_themed_label("This will upload your local data to Google Drive.", font_size="14sp", height=24))
 
@@ -911,7 +913,7 @@ class SettingsScreen(Screen):
             size_hint=(0.8, 0.32),
             separator_color=app.primary_color,
             title_color=app.text_color,
-            background_color=(0, 0, 0, 0.75 if app.theme_mode == "dark" else 0.4),
+            background_color=app.overlay_color,
         )
 
         cancel_btn.bind(on_release=lambda *_args: popup.dismiss())
@@ -924,6 +926,7 @@ class SettingsScreen(Screen):
         """
         app = App.get_running_app()
         content = BoxLayout(orientation="vertical", spacing=dp(8), padding=dp(12))
+        add_rounded_background(content, app.card_color, 22)
         content.add_widget(create_themed_label("Restore data?", font_size="16sp", bold=True, height=26))
         content.add_widget(create_themed_label("This will overwrite any local data with Drive data.", font_size="14sp", height=24))
 
@@ -940,7 +943,7 @@ class SettingsScreen(Screen):
             size_hint=(0.8, 0.32),
             separator_color=app.primary_color,
             title_color=app.text_color,
-            background_color=(0, 0, 0, 0.75 if app.theme_mode == "dark" else 0.4),
+            background_color=app.overlay_color,
         )
 
         cancel_btn.bind(on_release=lambda *_args: popup.dismiss())

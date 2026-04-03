@@ -50,6 +50,7 @@ GROUP_CHOICES = [
 # - "primary": Main accent color for buttons and highlights.
 # - "accent": Secondary accent color for positive actions.
 # - "danger": Color for error states and destructive actions.
+# - "overlay": Modal/transition scrim color layered above the current screen.
 THEMES = {
     "light": {
         "bg": [0.94, 0.96, 0.99, 1],      # Light blue-gray background
@@ -61,6 +62,7 @@ THEMES = {
         "primary": [0.14, 0.45, 0.78, 1], # Blue for primary actions
         "accent": [0.11, 0.62, 0.45, 1],  # Green for accent actions
         "danger": [0.83, 0.29, 0.29, 1],  # Red for danger/error
+        "overlay": [0.82, 0.88, 0.95, 0.72],  # Soft tinted scrim for popups/transitions
     },
     "dark": {
         "bg": [0.08, 0.08, 0.08, 1],      # Dark blue-gray background
@@ -72,5 +74,6 @@ THEMES = {
         "primary": [0.12, 0.12, 0.12, 1],  # Bright blue for primary actions
         "accent": [0.1, 0.1, 0.9, 1],  # Purple for accent actions
         "danger": [0.8, 0.42, 0.42, 1],  # Bright red for danger/error
+        "overlay": [0, 0, 0, 0.75],  # Dark scrim keeps modal focus in dark mode
     },
 }
