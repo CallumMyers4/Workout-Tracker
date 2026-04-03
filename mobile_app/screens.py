@@ -780,13 +780,59 @@ class SettingsScreen(Screen):
         """
         Backup data to Google Drive.
         """
-        App.get_running_app().backup_to_drive()
+        app = App.get_running_app()
+        content = BoxLayout(orientation="vertical", spacing=dp(8), padding=dp(12))
+        content.add_widget(create_themed_label("Backup data?", font_size="16sp", bold=True, height=26))
+        content.add_widget(create_themed_label("This will upload your local data to Google Drive.", font_size="14sp", height=24))
+
+        btn_row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(8))
+        cancel_btn = create_action_button("Cancel", app.panel_color, text_color=app.text_color)
+        confirm_btn = create_action_button("Backup", app.danger_color)
+        btn_row.add_widget(cancel_btn)
+        btn_row.add_widget(confirm_btn)
+        content.add_widget(btn_row)
+
+        popup = Popup(
+            title="Backup Data",
+            content=content,
+            size_hint=(0.8, 0.32),
+            separator_color=app.primary_color,
+            title_color=app.text_color,
+            background_color=(0, 0, 0, 0.75 if app.theme_mode == "dark" else 0.4),
+        )
+
+        cancel_btn.bind(on_release=lambda *_args: popup.dismiss())
+        confirm_btn.bind(on_release=lambda *_args: (app.backup_to_drive(), popup.dismiss()))
+        popup.open()
 
     def restore_drive(self):
         """
         Restore data from Google Drive.
         """
-        App.get_running_app().restore_from_drive()
+        app = App.get_running_app()
+        content = BoxLayout(orientation="vertical", spacing=dp(8), padding=dp(12))
+        content.add_widget(create_themed_label("Restore data?", font_size="16sp", bold=True, height=26))
+        content.add_widget(create_themed_label("This will overwrite any local data with Drive data.", font_size="14sp", height=24))
+
+        btn_row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(8))
+        cancel_btn = create_action_button("Cancel", app.panel_color, text_color=app.text_color)
+        confirm_btn = create_action_button("Restore", app.danger_color)
+        btn_row.add_widget(cancel_btn)
+        btn_row.add_widget(confirm_btn)
+        content.add_widget(btn_row)
+
+        popup = Popup(
+            title="Restore Data",
+            content=content,
+            size_hint=(0.8, 0.32),
+            separator_color=app.primary_color,
+            title_color=app.text_color,
+            background_color=(0, 0, 0, 0.75 if app.theme_mode == "dark" else 0.4),
+        )
+
+        cancel_btn.bind(on_release=lambda *_args: popup.dismiss())
+        confirm_btn.bind(on_release=lambda *_args: (app.restore_from_drive(), popup.dismiss()))
+        popup.open()
 
     def reset_preferences(self):
         """
