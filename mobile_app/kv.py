@@ -230,8 +230,10 @@ KV = """
 
         # Scrollable workout list
         ScrollView:
+            id: workout_scroll
             do_scroll_x: False              # Vertical scrolling only
             size_hint_y: 1                  # Take remaining space
+            on_scroll_y: root.maybe_load_more(self.scroll_y)
             BoxLayout:
                 id: workout_list
                 orientation: 'vertical'
