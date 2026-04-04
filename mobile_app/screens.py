@@ -815,7 +815,8 @@ class GoalsScreen(Screen):
         popup = Popup(
             title="Set Goal",
             content=popup_content,
-            size_hint=(0.86, 0.38),
+            size_hint=(0.86, None),
+            height=dp(190),
             separator_color=app.primary_color,
             title_color=app.text_color,
             background_color=app.overlay_color,

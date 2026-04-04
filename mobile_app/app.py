@@ -626,7 +626,8 @@ class WorkoutApp(App):
         popup = Popup(
             title="Exercise Library",
             content=content,
-            size_hint=(0.9, 0.72),
+            size_hint=(0.9, None),
+            height=dp(390),
             separator_color=self.primary_color,
             title_color=self.text_color,
             background_color=self.overlay_color,
@@ -680,7 +681,8 @@ class WorkoutApp(App):
         popup = Popup(
             title=title,
             content=content,
-            size_hint=(0.86, 0.34),
+            size_hint=(0.86, None),
+            height=dp(190),
             separator_color=self.primary_color,
             title_color=self.text_color,
             background_color=self.overlay_color,
