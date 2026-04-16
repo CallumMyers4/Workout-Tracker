@@ -1,0 +1,9 @@
+# Desktop + mobile dependencies for Workout Tracker
+kivy
+PyQt5
+matplotlib
+google-api-python-client
+google-auth-oauthlib
+google-auth
+certifi
+pyjnius
