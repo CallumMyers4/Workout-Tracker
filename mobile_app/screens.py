@@ -532,6 +532,7 @@ class WorkoutEditorScreen(Screen):
                     "sets": sets,
                     "reps": [value.strip() for value in reps.split(",") if value.strip()],
                     "weights": [value.strip() for value in weight.split(",") if value.strip()],
+                    "expanded": True,
                 })
         else:
             self.add_exercise_row()

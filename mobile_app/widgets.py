@@ -13,6 +13,7 @@ from kivy.uix.button import Button
 from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
+from kivy.uix.textinput import TextInput
 from kivy.app import App
 
 from .utils import add_rounded_background, create_action_button, create_themed_label, scroll_to_top
@@ -245,7 +246,24 @@ class ExerciseRow(BoxLayout):
             app.db.set_exercise_note(name, note_text)
             app.sync_exercise_library()
 
-        app.show_note_editor("Exercise Notes", name, note, save_note)
+        self._clear_active_text_inputs()
+        Clock.schedule_once(
+            lambda _dt: app.show_note_editor("Exercise Notes", name, note, save_note, auto_focus=False),
+            0.15,
+        )
+
+    def _clear_active_text_inputs(self):
+        """
+        Remove focus from set inputs before opening an exercise-level popup.
+        """
+        for widget in self.walk(restrict=True):
+            if isinstance(widget, TextInput):
+                widget.focus = False
+
+        try:
+            Window.release_all_keyboards()
+        except Exception:
+            pass
 
     def add_set_row(self, reps="", weights=""):
         """
@@ -306,6 +324,7 @@ class ExerciseRow(BoxLayout):
         layout height recalculation.
         """
         set_count = len(self._set_rows_container.children)
+        set_inputs_disabled = not self.expanded
 
         # Update toggle button text based on state
         self._toggle_button.text = "Hide" if self.expanded else "Show"
@@ -319,6 +338,13 @@ class ExerciseRow(BoxLayout):
         else:
             self._set_rows_container.opacity = 0
             self._collapsed_summary_label.opacity = 1
+
+        for set_row in self._set_rows_container.children:
+            for widget in set_row.walk(restrict=True):
+                if isinstance(widget, TextInput):
+                    widget.disabled = set_inputs_disabled
+                    if set_inputs_disabled:
+                        widget.focus = False
 
         self.update_layout_height()
 

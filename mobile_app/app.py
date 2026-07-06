@@ -531,7 +531,7 @@ class WorkoutApp(App):
         close_btn.bind(on_release=lambda *_args: popup.dismiss())
         popup.open()
 
-    def show_note_editor(self, title, subject_name, note, on_save):
+    def show_note_editor(self, title, subject_name, note, on_save, auto_focus=True):
         """
         Show a scoped note popup for workout or exercise notes.
 
@@ -540,6 +540,7 @@ class WorkoutApp(App):
             subject_name (str): workout or exercise name
             note (str): existing note text
             on_save (callable): receives the updated note text
+            auto_focus (bool): focus the note field when the popup opens
         """
         content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(12))
         add_rounded_background(content, self.card_color, 22)
@@ -597,7 +598,8 @@ class WorkoutApp(App):
         save_btn.bind(on_release=save_note)
         clear_btn.bind(on_release=clear_note)
         close_btn.bind(on_release=lambda *_args: popup.dismiss())
-        popup.bind(on_open=lambda *_args: Clock.schedule_once(lambda _dt: setattr(note_input, "focus", True), 0.1))
+        if auto_focus:
+            popup.bind(on_open=lambda *_args: Clock.schedule_once(lambda _dt: setattr(note_input, "focus", True), 0.1))
         popup.open()
 
     def show_list(self, check=True):
