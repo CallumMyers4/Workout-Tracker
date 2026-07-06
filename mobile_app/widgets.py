@@ -190,7 +190,8 @@ class ExerciseRow(BoxLayout):
         popup = Popup(
             title="Exercise Picker",
             content=content,
-            size_hint=(0.9, 0.72),  # 90% width, 72% height of screen
+            size_hint=(0.9, None),
+            height=dp(390),
             separator_color=app.primary_color,
             title_color=app.text_color,
             background_color=app.overlay_color,  # Theme-aware overlay
