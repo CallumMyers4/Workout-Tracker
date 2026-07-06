@@ -77,3 +77,10 @@ THEMES = {
         "overlay": [0, 0, 0, 0.75],  # Dark scrim keeps modal focus in dark mode
     },
 }
+
+IMAGES = {
+    "Home": "mobile_app/media/Home.png",
+    "New Workout": "mobile_app/media/New_Workout.png",
+    "Goals": "mobile_app/media/Goals.png",
+    "Settings": "mobile_app/media/Settings.png",
+}

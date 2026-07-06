@@ -5,7 +5,8 @@
 
 from kivy.clock import Clock
 from kivy.metrics import dp
-from kivy.properties import BooleanProperty
+from kivy.properties import BooleanProperty, ListProperty, StringProperty
+from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.popup import Popup
@@ -14,6 +15,14 @@ from kivy.uix.spinner import Spinner
 from kivy.app import App
 
 from .utils import add_rounded_background, create_action_button, create_themed_label, scroll_to_top
+
+
+class IconButton(ButtonBehavior, BoxLayout):
+    """A compact icon + label button for mobile nav actions."""
+
+    text = StringProperty("")
+    icon_source = StringProperty("")
+    bg_color = ListProperty([1, 1, 1, 1])
 
 
 class ExerciseRow(BoxLayout):

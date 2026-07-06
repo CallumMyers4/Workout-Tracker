@@ -22,10 +22,11 @@ from kivy.uix.screenmanager import ScreenManager
 
 from common.db_helper import DBHelper
 from common.google_drive_helper import GoogleDriveHelper
-from .constants import SORT_CHOICES, FILTER_CHOICES, GROUP_CHOICES, THEMES
+from .constants import SORT_CHOICES, FILTER_CHOICES, GROUP_CHOICES, THEMES, IMAGES
 from .kv import KV
 from .screens import WorkoutListScreen, WorkoutDetailScreen, WorkoutEditorScreen, GoalsScreen, SettingsScreen
 from .utils import get_choice_label, cycle_choice, parse_workout_date, create_action_button, add_rounded_background, create_themed_label, scroll_to_top
+from .widgets import IconButton
 
 class WorkoutApp(App):
     """
@@ -49,6 +50,10 @@ class WorkoutApp(App):
     search_text = StringProperty("")
     filter_mode = StringProperty("all")
     filter_label = StringProperty("All Time")
+    home_icon = StringProperty(IMAGES["Home"])
+    new_log_icon = StringProperty(IMAGES["New Workout"])
+    goals_icon = StringProperty(IMAGES["Goals"])
+    settings_icon = StringProperty(IMAGES["Settings"])
     sort_mode = StringProperty("newest")
     sort_label = StringProperty("Newest")
     group_mode = StringProperty("none")

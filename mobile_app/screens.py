@@ -42,8 +42,8 @@ class WorkoutListScreen(Screen):
     PAGE_DAYS = 14
     UNKNOWN_DATE_PAGE_SIZE = 20
     BOTTOM_LOAD_THRESHOLD = 0.02
-    POST_LOAD_SCROLL_Y = 0.06
-
+    POST_LOAD_SCROLL_Y = 0.2
+    
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._all_workouts = []

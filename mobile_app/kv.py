@@ -127,6 +127,38 @@ KV = """
             size: self.size
             radius: [18]
 
+# IconButton - button with a background image from media plus text overlay
+<IconButton>:
+    orientation: 'vertical'
+    padding: [dp(8), dp(8), dp(8), dp(8)]
+    spacing: dp(4)
+    size_hint_y: None
+    height: dp(96)
+    bg_color: app.panel_color
+    canvas.before:
+        Color:
+            rgba: root.bg_color
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [18]
+    Image:
+        source: root.icon_source
+        size_hint: 1, None
+        height: dp(44)
+        allow_stretch: True
+        keep_ratio: True
+    Label:
+        text: root.text
+        color: app.text_color
+        bold: True
+        font_size: '11sp' if app.compact_mode else '12sp'
+        size_hint_y: None
+        height: self.texture_size[1] + dp(2)
+        halign: 'center'
+        valign: 'middle'
+        text_size: self.width, None
+
 # ModernInput - styled text input field
 # Used for user text input throughout the app
 <ModernInput@TextInput>:
@@ -245,20 +277,28 @@ KV = """
         # Bottom navigation bar
         GridLayout:
             size_hint_y: None
-            cols: 2 if app.compact_mode else 4
-            height: dp(100) if app.compact_mode else dp(48)
+            cols: 4
+            height: dp(108)
             spacing: dp(6)
-            AccentButton:
+            IconButton:
                 text: 'Home'
+                icon_source: app.home_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'list' else app.panel_color
                 on_release: app.show_list(check=False)
-            GhostButton:
-                text: 'New Workout'
+            IconButton:
+                text: 'New Log'
+                icon_source: app.new_log_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'editor' else app.panel_color
                 on_release: app.open_editor()
-            GhostButton:
+            IconButton:
                 text: 'Goals'
+                icon_source: app.goals_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'goals' else app.panel_color
                 on_release: app.show_goals()
-            GhostButton:
+            IconButton:
                 text: 'Settings'
+                icon_source: app.settings_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'settings' else app.panel_color
                 on_release: app.show_settings()
 
 # WorkoutDetailScreen - screen showing detailed view of a single workout
@@ -330,20 +370,28 @@ KV = """
         # Bottom navigation bar
         GridLayout:
             size_hint_y: None
-            cols: 2 if app.compact_mode else 4
-            height: dp(100) if app.compact_mode else dp(48)
+            cols: 4
+            height: dp(108)
             spacing: dp(6)
-            AccentButton:
+            IconButton:
                 text: 'Home'
+                icon_source: app.home_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'list' else app.panel_color
                 on_release: app.show_list(check=False)
-            GhostButton:
-                text: 'New Workout'
+            IconButton:
+                text: 'New Log'
+                icon_source: app.new_log_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'editor' else app.panel_color
                 on_release: app.open_editor()
-            GhostButton:
+            IconButton:
                 text: 'Goals'
+                icon_source: app.goals_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'goals' else app.panel_color
                 on_release: app.show_goals()
-            GhostButton:
+            IconButton:
                 text: 'Settings'
+                icon_source: app.settings_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'settings' else app.panel_color
                 on_release: app.show_settings()
 
 # WorkoutEditorScreen - screen for creating/editing workouts
@@ -476,20 +524,28 @@ KV = """
         # Bottom navigation bar
         GridLayout:
             size_hint_y: None
-            cols: 2 if app.compact_mode else 4
-            height: dp(100) if app.compact_mode else dp(48)
+            cols: 4
+            height: dp(108)
             spacing: dp(6)
-            GhostButton:
+            IconButton:
                 text: 'Home'
+                icon_source: app.home_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'list' else app.panel_color
                 on_release: app.show_list()
-            AccentButton:
-                text: 'New Workout'
+            IconButton:
+                text: 'New Log'
+                icon_source: app.new_log_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'editor' else app.panel_color
                 on_release: app.open_editor()
-            GhostButton:
+            IconButton:
                 text: 'Goals'
+                icon_source: app.goals_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'goals' else app.panel_color
                 on_release: app.show_goals()
-            GhostButton:
+            IconButton:
                 text: 'Settings'
+                icon_source: app.settings_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'settings' else app.panel_color
                 on_release: app.show_settings()
 
 # ExerciseRow - widget for managing a single exercise in the editor
@@ -623,20 +679,28 @@ KV = """
 
         GridLayout:
             size_hint_y: None
-            cols: 2 if app.compact_mode else 4
-            height: dp(100) if app.compact_mode else dp(48)
+            cols: 4
+            height: dp(108)
             spacing: dp(6)
-            GhostButton:
+            IconButton:
                 text: 'Home'
+                icon_source: app.home_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'list' else app.panel_color
                 on_release: app.show_list()
-            GhostButton:
-                text: 'New Workout'
+            IconButton:
+                text: 'New Log'
+                icon_source: app.new_log_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'editor' else app.panel_color
                 on_release: app.open_editor()
-            AccentButton:
+            IconButton:
                 text: 'Goals'
+                icon_source: app.goals_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'goals' else app.panel_color
                 on_release: app.show_goals()
-            GhostButton:
+            IconButton:
                 text: 'Settings'
+                icon_source: app.settings_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'settings' else app.panel_color
                 on_release: app.show_settings()
 
 # SettingsScreen - screen for app configuration and preferences
@@ -772,19 +836,27 @@ KV = """
         # Bottom navigation bar
         GridLayout:
             size_hint_y: None
-            cols: 2 if app.compact_mode else 4
-            height: dp(100) if app.compact_mode else dp(48)
+            cols: 4
+            height: dp(108)
             spacing: dp(6)
-            GhostButton:
+            IconButton:
                 text: 'Home'
+                icon_source: app.home_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'list' else app.panel_color
                 on_release: app.show_list()
-            GhostButton:
-                text: 'New Workout'
+            IconButton:
+                text: 'New Log'
+                icon_source: app.new_log_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'editor' else app.panel_color
                 on_release: app.open_editor()
-            GhostButton:
+            IconButton:
                 text: 'Goals'
+                icon_source: app.goals_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'goals' else app.panel_color
                 on_release: app.show_goals()
-            AccentButton:
+            IconButton:
                 text: 'Settings'
+                icon_source: app.settings_icon
+                bg_color: (app.panel_color[0] + 0.06, app.panel_color[1] + 0.06, app.panel_color[2] + 0.06, app.panel_color[3]) if app.sm.current == 'settings' else app.panel_color
                 on_release: app.show_settings()
 """
