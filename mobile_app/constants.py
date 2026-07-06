@@ -72,8 +72,8 @@ THEMES = {
         "text": [0.8, 0.8, 0.8, 1],    # Light gray for text
         "muted": [0.4, 0.4, 0.4, 1],    # Medium light gray for muted text
         "primary": [0.12, 0.12, 0.12, 1],  # Bright blue for primary actions
-        "accent": [0.05, 0.05, 0.2, 1],  # Blue for accent actions
-        "danger": [0.6, 0.22, 0.22, 1],  # Bright red for danger/error
+        "accent": [0.08, 0.08, 0.3, 1],  # Blue for accent actions
+        "danger": [0.3, 0.08, 0.08, 1],  # Bright red for danger/error
         "overlay": [0, 0, 0, 0.75],  # Dark scrim keeps modal focus in dark mode
     },
 }
