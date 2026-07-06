@@ -44,6 +44,19 @@ class DBHelper:
             )
         """)
 
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS workout_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                workout_name TEXT UNIQUE COLLATE NOCASE,
+                note TEXT
+            )
+        """)
+
+        c.execute("PRAGMA table_info(exercises_catalog)")
+        catalog_columns = [row[1] for row in c.fetchall()]
+        if "note" not in catalog_columns:
+            c.execute("ALTER TABLE exercises_catalog ADD COLUMN note TEXT")
+
         #Commit the changes
         self.conn.commit()
         self.sync_exercise_catalog()
@@ -133,7 +146,7 @@ class DBHelper:
     def get_catalog_exercise_by_name(self, name):
         c = self.conn.cursor()
         c.execute(
-            "SELECT id, name, goal FROM exercises_catalog WHERE LOWER(name) = LOWER(?)",
+            "SELECT id, name, goal, note FROM exercises_catalog WHERE LOWER(name) = LOWER(?)",
             (name,),
         )
         return c.fetchone()
@@ -170,18 +183,21 @@ class DBHelper:
             if not combine_existing:
                 raise ValueError("That exercise already exists.")
 
-            target_id, target_name, target_goal = existing
+            target_id, target_name, target_goal, target_note = existing
             merged_goal = target_goal
             if merged_goal is None:
                 merged_goal = current_goal
             elif current_goal is not None:
                 merged_goal = max(float(merged_goal), float(current_goal))
 
+            current_note = self.get_exercise_note(current_name)
+            merged_note = target_note or current_note
+
             c.execute(
                 "UPDATE exercises SET name = ? WHERE LOWER(name) = LOWER(?)",
                 (target_name, current_name),
             )
-            c.execute("UPDATE exercises_catalog SET goal = ? WHERE id = ?", (merged_goal, target_id))
+            c.execute("UPDATE exercises_catalog SET goal = ?, note = ? WHERE id = ?", (merged_goal, merged_note, target_id))
             c.execute("DELETE FROM exercises_catalog WHERE id = ?", (exercise_id,))
             self.conn.commit()
             return {"combined": True, "name": target_name}
@@ -195,6 +211,71 @@ class DBHelper:
     def update_goal(self, exercise_id, new_goal):
         c = self.conn.cursor()
         c.execute("UPDATE exercises_catalog SET goal = ? WHERE id = ?", (new_goal, exercise_id))
+        self.conn.commit()
+
+    def get_workout_note(self, workout_name):
+        cleaned_name = (workout_name or "").strip()
+        if not cleaned_name:
+            return ""
+        c = self.conn.cursor()
+        c.execute(
+            "SELECT note FROM workout_notes WHERE LOWER(workout_name) = LOWER(?)",
+            (cleaned_name,),
+        )
+        row = c.fetchone()
+        return row[0] if row and row[0] else ""
+
+    def set_workout_note(self, workout_name, note):
+        cleaned_name = (workout_name or "").strip()
+        cleaned_note = (note or "").strip()
+        if not cleaned_name:
+            raise ValueError("Workout name is required before saving a note.")
+
+        c = self.conn.cursor()
+        c.execute(
+            "SELECT id FROM workout_notes WHERE LOWER(workout_name) = LOWER(?)",
+            (cleaned_name,),
+        )
+        existing = c.fetchone()
+        if cleaned_note:
+            if existing:
+                c.execute(
+                    "UPDATE workout_notes SET workout_name = ?, note = ? WHERE LOWER(workout_name) = LOWER(?)",
+                    (cleaned_name, cleaned_note, cleaned_name),
+                )
+            else:
+                c.execute(
+                    "INSERT INTO workout_notes (workout_name, note) VALUES (?, ?)",
+                    (cleaned_name, cleaned_note),
+                )
+        else:
+            c.execute("DELETE FROM workout_notes WHERE LOWER(workout_name) = LOWER(?)", (cleaned_name,))
+        self.conn.commit()
+
+    def get_exercise_note(self, exercise_name):
+        cleaned_name = (exercise_name or "").strip()
+        if not cleaned_name:
+            return ""
+        c = self.conn.cursor()
+        c.execute(
+            "SELECT note FROM exercises_catalog WHERE LOWER(name) = LOWER(?)",
+            (cleaned_name,),
+        )
+        row = c.fetchone()
+        return row[0] if row and row[0] else ""
+
+    def set_exercise_note(self, exercise_name, note):
+        cleaned_name = (exercise_name or "").strip()
+        cleaned_note = (note or "").strip()
+        if not cleaned_name:
+            raise ValueError("Exercise name is required before saving a note.")
+
+        c = self.conn.cursor()
+        c.execute("INSERT OR IGNORE INTO exercises_catalog (name) VALUES (?)", (cleaned_name,))
+        c.execute(
+            "UPDATE exercises_catalog SET note = ? WHERE LOWER(name) = LOWER(?)",
+            (cleaned_note or None, cleaned_name),
+        )
         self.conn.commit()
 
     #Get the best set per exercise

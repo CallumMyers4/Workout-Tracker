@@ -489,6 +489,23 @@ class WorkoutEditorScreen(Screen):
                 row.collapse()
         self.ids.exercise_rows.add_widget(row)
 
+    def open_workout_note(self):
+        """
+        Open the editor for the current workout-name note.
+        """
+        app = App.get_running_app()
+        name = self.ids.workout_name.text.strip()
+        if not name:
+            app.show_popup("Workout Notes", "Enter a workout name before adding a workout note.")
+            return
+
+        note = app.db.get_workout_note(name)
+
+        def save_note(note_text):
+            app.db.set_workout_note(name, note_text)
+
+        app.show_note_editor("Workout Notes", name, note, save_note)
+
     def load_workout(self, workout_id):
         """
         Load an existing workout into the editor for modification.

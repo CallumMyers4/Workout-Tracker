@@ -440,10 +440,18 @@ KV = """
             size_hint_y: None
             height: dp(22)
             bold: True
-        ModernInput:
-            id: workout_name
-            hint_text: 'Push Day, Long Run, Lower Body'
+        BoxLayout:
             size_hint_y: None
+            height: dp(52)
+            spacing: dp(8)
+            ModernInput:
+                id: workout_name
+                hint_text: 'Push Day, Long Run, Lower Body'
+            GhostButton:
+                text: 'Notes'
+                size_hint_x: None
+                width: dp(78)
+                on_release: root.open_workout_note()
 
         # Workout date picker
         BodyLabel:
@@ -587,6 +595,9 @@ KV = """
         GhostButton:
             text: '+ Set'
             on_release: root.add_set_row()
+        GhostButton:
+            text: 'Notes'
+            on_release: root.open_exercise_note()
     BoxLayout:
         id: detail_area
         orientation: 'vertical'

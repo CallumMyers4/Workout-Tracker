@@ -19,6 +19,7 @@ from kivy.uix.popup import Popup
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.screenmanager import ScreenManager
+from kivy.uix.textinput import TextInput
 
 from common.db_helper import DBHelper
 from common.google_drive_helper import GoogleDriveHelper
@@ -528,6 +529,75 @@ class WorkoutApp(App):
             background_color=self.overlay_color,
         )
         close_btn.bind(on_release=lambda *_args: popup.dismiss())
+        popup.open()
+
+    def show_note_editor(self, title, subject_name, note, on_save):
+        """
+        Show a scoped note popup for workout or exercise notes.
+
+        Args:
+            title (str): popup title
+            subject_name (str): workout or exercise name
+            note (str): existing note text
+            on_save (callable): receives the updated note text
+        """
+        content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(12))
+        add_rounded_background(content, self.card_color, 22)
+        content.add_widget(create_themed_label(subject_name, font_size="15sp", bold=True, height=26))
+
+        note_input = TextInput(
+            text=note or "",
+            multiline=True,
+            hint_text="Add a reminder for next time...",
+            background_normal="",
+            background_active="",
+            background_color=self.input_color,
+            foreground_color=self.text_color,
+            hint_text_color=self.muted_text_color,
+            cursor_color=self.text_color,
+            cursor_width=dp(2),
+            keyboard_suggestions=True,
+            use_bubble=True,
+            use_handles=True,
+            padding=[dp(14), dp(12), dp(14), dp(12)],
+            size_hint_y=1,
+        )
+        content.add_widget(note_input)
+
+        buttons = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(8))
+        close_btn = create_action_button("Close", self.panel_color, text_color=self.text_color)
+        clear_btn = create_action_button("Clear", self.danger_color)
+        save_btn = create_action_button("Save", self.primary_color)
+        buttons.add_widget(close_btn)
+        buttons.add_widget(clear_btn)
+        buttons.add_widget(save_btn)
+        content.add_widget(buttons)
+
+        popup = Popup(
+            title=title,
+            content=content,
+            size_hint=(0.9, 0.56),
+            separator_color=self.primary_color,
+            title_color=self.text_color,
+            background_color=self.overlay_color,
+        )
+
+        def save_note(_instance):
+            try:
+                on_save(note_input.text)
+            except ValueError as exc:
+                self.show_popup(title, str(exc))
+                return
+            popup.dismiss()
+
+        def clear_note(_instance):
+            note_input.text = ""
+            save_note(_instance)
+
+        save_btn.bind(on_release=save_note)
+        clear_btn.bind(on_release=clear_note)
+        close_btn.bind(on_release=lambda *_args: popup.dismiss())
+        popup.bind(on_open=lambda *_args: Clock.schedule_once(lambda _dt: setattr(note_input, "focus", True), 0.1))
         popup.open()
 
     def show_list(self, check=True):

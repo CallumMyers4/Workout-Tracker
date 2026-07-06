@@ -229,6 +229,24 @@ class ExerciseRow(BoxLayout):
             self._picker_popup.dismiss()
             self._picker_popup = None
 
+    def open_exercise_note(self):
+        """
+        Open the editor for the selected exercise note.
+        """
+        app = App.get_running_app()
+        name = self.ids.name.text.strip()
+        if not name or name == "Select exercise":
+            app.show_popup("Exercise Notes", "Choose an exercise before adding an exercise note.")
+            return
+
+        note = app.db.get_exercise_note(name)
+
+        def save_note(note_text):
+            app.db.set_exercise_note(name, note_text)
+            app.sync_exercise_library()
+
+        app.show_note_editor("Exercise Notes", name, note, save_note)
+
     def add_set_row(self, reps="", weights=""):
         """
         Add a new set row to this exercise with optional pre-filled values.
