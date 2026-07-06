@@ -618,6 +618,9 @@ KV = """
     ModernInput:
         id: reps
         hint_text: 'Reps'
+        input_filter: 'int'
+        input_type: 'number'
+        keyboard_suggestions: False
     ModernInput:
         id: weights
         hint_text: 'Weight'
