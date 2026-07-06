@@ -617,7 +617,7 @@ class WorkoutApp(App):
                 row.add_widget(label)
                 row.add_widget(rename_btn)
                 scroll.add_widget(row)
-            scroll_view = ScrollView(do_scroll_x=False, size_hint_y=None, height=dp(280), bar_width=dp(6))
+            scroll_view = ScrollView(do_scroll_x=False, size_hint_y=1, bar_width=dp(6))
             scroll_view.add_widget(scroll)
             content.add_widget(scroll_view)
 
@@ -628,11 +628,13 @@ class WorkoutApp(App):
         buttons.add_widget(close_btn)
         content.add_widget(buttons)
 
+        popup_height = min(dp(390), max(dp(240), Window.height - dp(72)))
+
         popup = Popup(
             title="Exercise Library",
             content=content,
             size_hint=(0.9, None),
-            height=dp(390),
+            height=popup_height,
             separator_color=self.primary_color,
             title_color=self.text_color,
             background_color=self.overlay_color,

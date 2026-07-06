@@ -4,6 +4,7 @@
 # including exercise management, set tracking, and interactive UI components.
 
 from kivy.clock import Clock
+from kivy.core.window import Window
 from kivy.metrics import dp
 from kivy.properties import BooleanProperty, ListProperty, StringProperty
 from kivy.uix.behaviors import ButtonBehavior
@@ -187,7 +188,7 @@ class ExerciseRow(BoxLayout):
             option_list.add_widget(choice)
 
         # Create scrollable container for the option list
-        scroll = ScrollView(do_scroll_x=False, size_hint_y=None, height=dp(280))
+        scroll = ScrollView(do_scroll_x=False, size_hint_y=1)
         scroll.add_widget(option_list)
         content.add_widget(scroll)
 
@@ -195,12 +196,14 @@ class ExerciseRow(BoxLayout):
         close_btn = create_action_button("Close", app.panel_color, text_color=app.text_color)
         content.add_widget(close_btn)
 
+        popup_height = min(dp(390), max(dp(240), Window.height - dp(72)))
+
         # Create and configure the popup
         popup = Popup(
             title="Exercise Picker",
             content=content,
             size_hint=(0.9, None),
-            height=dp(390),
+            height=popup_height,
             separator_color=app.primary_color,
             title_color=app.text_color,
             background_color=app.overlay_color,  # Theme-aware overlay
@@ -292,16 +295,12 @@ class ExerciseRow(BoxLayout):
         # Update summary text for collapsed state
         self._collapsed_summary_label.text = f"{set_count} set{'s' if set_count != 1 else ''} ready to edit"
 
-        # Switch between showing sets or summary based on expansion state
-        self._detail_area.clear_widgets()
         if self.expanded:
             self._set_rows_container.opacity = 1
             self._collapsed_summary_label.opacity = 0
-            self._detail_area.add_widget(self._set_rows_container)
         else:
             self._set_rows_container.opacity = 0
             self._collapsed_summary_label.opacity = 1
-            self._detail_area.add_widget(self._collapsed_summary_label)
 
         self.update_layout_height()
 
