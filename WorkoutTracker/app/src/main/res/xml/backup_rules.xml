@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11-and-earlier automatic-backup allowlist for user-created data. -->
+<full-backup-content>
+    <include domain="database" path="workout-tracker.db" />
+    <include domain="file" path="datastore/workout_preferences.preferences_pb" />
+</full-backup-content>

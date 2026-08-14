@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Framework launch theme; Compose supplies the in-app Material theme after startup. -->
+<resources>
+
+    <style name="Theme.WorkoutTracker" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

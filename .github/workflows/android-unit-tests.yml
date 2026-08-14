@@ -1,0 +1,51 @@
+name: Android unit tests
+
+on:
+  push:
+    paths:
+      - "WorkoutTracker/**"
+      - ".github/workflows/android-unit-tests.yml"
+  pull_request:
+    paths:
+      - "WorkoutTracker/**"
+      - ".github/workflows/android-unit-tests.yml"
+  workflow_dispatch:
+
+# Unit tests only need read access to the checked-out source code.
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Run JVM unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: WorkoutTracker
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android API 36
+        run: sdkmanager "platforms;android-36"
+
+      # This validates the Gradle wrapper and caches dependencies between workflow runs.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Run unit tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace

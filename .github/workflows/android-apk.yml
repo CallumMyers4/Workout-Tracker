@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android Studio release
 
 on:
   workflow_dispatch:
@@ -8,193 +8,90 @@ on:
       - master
       - '**'
 
+# The build only needs access to the checked-out Android Studio project.
+permissions:
+  contents: read
+
 jobs:
-  preflight:
+  build-release:
     if: >
       github.event_name == 'workflow_dispatch' ||
       contains(github.event.head_commit.message, '--build_mobile_apk') ||
       github.ref == 'refs/heads/main' ||
       github.ref == 'refs/heads/master'
-    runs-on: ubuntu-22.04
-    timeout-minutes: 10
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Verify project files
-        run: |
-          pwd
-          ls -la
-          test -f buildozer.spec
-          test -f main.py
-          test -f mobile_app.py
-
-      - name: Python syntax check
-        run: |
-          python -m py_compile main.py mobile_app.py common/google_drive_helper.py common/db_helper.py
-
-  build-apk:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.head_commit.message, '--build_mobile_apk') ||
-      github.ref == 'refs/heads/main' ||
-      github.ref == 'refs/heads/master'
-    runs-on: ubuntu-22.04
-    timeout-minutes: 90
-    needs: preflight
+    name: Build signed APK and AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
-        working-directory: ${{ github.workspace }}
+        working-directory: WorkoutTracker
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Check out source
+        uses: actions/checkout@v6
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
 
-      - name: Cache buildozer directories
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.buildozer
-            .buildozer
-          key: ${{ runner.os }}-buildozer-api35-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            ${{ runner.os }}-buildozer-api35-
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
 
-      - name: Clear old buildozer cache
-        run: |
-          rm -rf ~/.buildozer .buildozer
+      - name: Install Android API 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Install system packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            git zip unzip autoconf automake libtool libtool-bin m4 pkg-config \
-            zlib1g-dev libncurses5-dev libncursesw5-dev \
-            libtinfo6 cmake libffi-dev libssl-dev
+      # Validate the wrapper and reuse downloaded Gradle dependencies between builds.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
 
-      - name: Install build dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install buildozer cython==0.29.36
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
 
-      - name: Verify project files
-        run: |
-          pwd
-          ls -la
-          test -f buildozer.spec
-
-      - name: Build APK
+      - name: Check release signing secrets
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_ALIAS_PASSWORD: ${{ secrets.ANDROID_KEY_ALIAS_PASSWORD }}
         run: |
-          if (
-            $env:ANDROID_KEYSTORE_BASE64 -and
-            $env:ANDROID_KEYSTORE_PASSWORD -and
-            $env:ANDROID_KEY_ALIAS -and
-            $env:ANDROID_KEY_ALIAS_PASSWORD
-          ) {
-            Write-Host "Building signed release APK with the repository keystore."
-            [IO.File]::WriteAllBytes(
-              (Join-Path $pwd 'release.keystore'),
-              [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64)
-            )
-            $env:P4A_RELEASE_KEYSTORE = (Join-Path $pwd 'release.keystore')
-            $env:P4A_RELEASE_KEYSTORE_PASSWD = $env:ANDROID_KEYSTORE_PASSWORD
-            $env:P4A_RELEASE_KEYALIAS = $env:ANDROID_KEY_ALIAS
-            $env:P4A_RELEASE_KEYALIAS_PASSWD = $env:ANDROID_KEY_ALIAS_PASSWORD
-            buildozer -v android release
-          }
-          else {
-            Write-Host "Building debug APK because release-signing secrets are missing."
-            buildozer -v android debug
-          }
-        shell: pwsh
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_ALIAS_PASSWORD"
 
-      - name: Show build outputs
-        if: always()
-        run: |
-          pwd
-          if [ -d bin ]; then
-            echo "bin directory contents:"
-            ls -la bin
-          else
-            echo "bin directory was not created."
-          fi
-        shell: bash
-
-      - name: Convert AAB to universal APK
-        if: success()
+      - name: Decode release keystore
         env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/workout-tracker-upload.jks"
+
+      - name: Test and build signed release files
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/workout-tracker-upload.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_ALIAS_PASSWORD: ${{ secrets.ANDROID_KEY_ALIAS_PASSWORD }}
+        run: ./gradlew :app:testDebugUnitTest :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace
+
+      - name: Verify release signatures
         run: |
-          $aab = Get-ChildItem -Path bin -Filter *.aab | Select-Object -First 1
-          if (-not $aab) {
-            Write-Host "No AAB found, skipping bundletool conversion."
-            exit 0
-          }
+          android_sdk="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          "$android_sdk/build-tools/36.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify app/build/outputs/bundle/release/app-release.aab
 
-          if (-not (Test-Path (Join-Path $pwd 'release.keystore'))) {
-            Write-Host "release.keystore is not present, skipping bundletool conversion."
-            exit 0
-          }
+      - name: Prepare release files
+        run: |
+          mkdir -p artifacts
+          cp app/build/outputs/apk/release/app-release.apk artifacts/Workout-Tracker.apk
+          cp app/build/outputs/bundle/release/app-release.aab artifacts/Workout-Tracker.aab
 
-          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/google/bundletool/releases/latest"
-          $asset = $release.assets | Where-Object { $_.name -like "bundletool-all-*.jar" } | Select-Object -First 1
-          if (-not $asset) {
-            throw "Could not find a bundletool jar in the latest GitHub release."
-          }
-
-          Write-Host "Downloading bundletool asset: $($asset.name)"
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile (Join-Path $pwd $asset.name)
-
-          java -jar (Join-Path $pwd $asset.name) build-apks `
-            --bundle=$($aab.FullName) `
-            --output=$((Join-Path $pwd 'bin\\workouttracker-universal.apks')) `
-            --mode=universal `
-            --overwrite `
-            --ks=$((Join-Path $pwd 'release.keystore')) `
-            --ks-pass=pass:$env:ANDROID_KEYSTORE_PASSWORD `
-            --ks-key-alias=$env:ANDROID_KEY_ALIAS `
-            --key-pass=pass:$env:ANDROID_KEY_ALIAS_PASSWORD
-
-          Expand-Archive `
-            -Path (Join-Path $pwd 'bin\\workouttracker-universal.apks') `
-            -DestinationPath (Join-Path $pwd 'bin\\workouttracker-universal') `
-            -Force
-
-          Copy-Item `
-            -Path (Join-Path $pwd 'bin\\workouttracker-universal\\universal.apk') `
-            -Destination (Join-Path $pwd 'bin\\Workout_Tracker_universal.apk') `
-            -Force
-        shell: pwsh
-
-      - name: Upload Android artifact
+      # GitHub downloads this artifact as Workout-Tracker.zip with both renamed files inside.
+      - name: Upload release zip
         uses: actions/upload-artifact@v4
         with:
-          name: workout-tracker-android-package
+          name: Workout-Tracker
           path: |
-            bin/*.apk
-            bin/*.aab
+            WorkoutTracker/artifacts/Workout-Tracker.apk
+            WorkoutTracker/artifacts/Workout-Tracker.aab
           if-no-files-found: error

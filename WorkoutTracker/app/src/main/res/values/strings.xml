@@ -1,0 +1,4 @@
+<!-- User-visible strings referenced by Android framework resources such as the app label. -->
+<resources>
+    <string name="app_name">Workout Tracker</string>
+</resources>
