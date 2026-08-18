@@ -52,7 +52,7 @@ fun ExerciseLibraryDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(modifier) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Exercise library")
+                Text("Exercise Library")
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it; inputError = null },

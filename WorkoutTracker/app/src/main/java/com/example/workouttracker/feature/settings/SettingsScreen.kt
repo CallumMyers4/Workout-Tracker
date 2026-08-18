@@ -15,10 +15,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -29,6 +27,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
@@ -36,7 +35,11 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.workouttracker.R
 import com.example.workouttracker.domain.repository.BackupConnectionState
+import com.example.workouttracker.ui.theme.ActionButton
+import com.example.workouttracker.ui.theme.DestructiveButton
+import com.example.workouttracker.ui.theme.GenericCard
 import com.example.workouttracker.ui.theme.PageTitle
 
 // Function to display the settings screen
@@ -63,7 +66,8 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             PageTitle(
-                text = "Settings"
+                text = "Settings",
+                icon = painterResource(R.drawable.icon_settings),
             )
 
             Column(
@@ -91,17 +95,12 @@ fun SettingsScreen(
                     title = "Exercise library",
                     supportingText = "Add, rename, or combine exercises used in your workouts.",
                 ) {
-                    Text(
-                        text = exerciseCountText(uiState.exercises.size),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    FilledTonalButton(
+                    ActionButton(
+                        text = "Manage exercise library",
                         onClick = onManageExercises,
+                        onCard = true,
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text("Manage exercise library")
-                    }
+                    )
                 }
 
                 DriveSettingsCard(
@@ -127,6 +126,7 @@ fun SettingsScreen(
             dismissButton = { TextButton(onClick = onDismissConfirmation) { Text("Cancel") } },
         )
     }
+
     // Ask for confirmation before overwriting all local data from Drive
     if (uiState.showRestoreConfirmation) {
         AlertDialog(
@@ -146,25 +146,16 @@ private fun SettingsSectionCard(
     supportingText: String,
     content: @Composable () -> Unit,
 ) {
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = supportingText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            content()
-        }
+    GenericCard(
+        title = title,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = supportingText,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        content()
     }
 }
 
@@ -187,7 +178,7 @@ private fun ThemeSettingRow(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text("Dark theme", style = MaterialTheme.typography.titleMedium)
+            Text("Dark Theme", style = MaterialTheme.typography.titleMedium)
             Text(
                 text = "Use darker colours throughout the app",
                 style = MaterialTheme.typography.bodyMedium,
@@ -215,11 +206,11 @@ private fun DriveSettingsCard(
         )
 
     SettingsSectionCard(
-        title = "Google Drive backup",
+        title = "Google Drive Backup",
         supportingText = "Keep an optional copy of your complete workout database in Drive.",
     ) {
+        //TODO: Make this a flash notification not constant, and user-friendly errors
         BackupStatus(state)
-
         if (state is BackupConnectionState.Error) {
             Text(
                 text = state.message,
@@ -228,33 +219,44 @@ private fun DriveSettingsCard(
             )
         }
 
-        FilledTonalButton(
-            onClick = onSignInOrOut,
-            enabled = canChangeConnection,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(if (connected) "Disconnect Google Drive" else "Connect Google Drive")
-        }
+        // Show either connected or disconnected button based on state
+        // Only show options to back up or restore when connected
+        if (connected) {
+                DestructiveButton(
+                    text = "Disconnect Google Drive",
+                    onClick = onSignInOrOut,
+                    enabled = canChangeConnection,
+                    onCard = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedButton(
-                onClick = onRequestBackup,
-                enabled = connected,
-                modifier = Modifier.weight(1f),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("Back up")
-            }
-            OutlinedButton(
-                onClick = onRequestRestore,
-                enabled = connected,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Restore")
+                ActionButton(
+                    text = "Back Up",
+                    onClick = onRequestBackup,
+                    onCard = true,
+                    modifier = Modifier.weight(1f),
+                )
+
+                ActionButton(
+                    text = "Restore",
+                    onClick = onRequestBackup,
+                    onCard = true,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
+        else
+            ActionButton(
+                text = "Connect Google Drive",
+                onClick = onSignInOrOut,
+                enabled = canChangeConnection,
+                onCard = true,
+                modifier = Modifier.fillMaxWidth()
+            )
     }
 }
 
@@ -321,7 +323,7 @@ private fun MessageCard(message: String, isError: Boolean) {
         MaterialTheme.colorScheme.onSecondaryContainer
     }
 
-    Card(
+    GenericCard(
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
             contentColor = contentColor,
@@ -332,7 +334,6 @@ private fun MessageCard(message: String, isError: Boolean) {
     ) {
         Text(
             text = message,
-            modifier = Modifier.padding(16.dp),
             style = MaterialTheme.typography.bodyMedium,
         )
     }
@@ -353,11 +354,4 @@ private fun BackupConnectionState.statusLabel(): String = when (this) {
     BackupConnectionState.Uploading -> "Uploading backup…"
     BackupConnectionState.Restoring -> "Restoring backup…"
     is BackupConnectionState.Error -> "Connection error"
-}
-
-// Return the exercise library count using the correct singular or plural text
-private fun exerciseCountText(count: Int): String = when (count) {
-    0 -> "No exercises in your library"
-    1 -> "1 exercise in your library"
-    else -> "$count exercises in your library"
 }

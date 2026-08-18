@@ -14,7 +14,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import com.example.workouttracker.R
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,12 +24,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.workouttracker.core.model.WorkoutFilter
 import com.example.workouttracker.core.model.WorkoutGrouping
 import com.example.workouttracker.core.model.WorkoutSort
+import com.example.workouttracker.ui.theme.GenericButton
+import com.example.workouttracker.ui.theme.EmptyStateTextStyle
 import com.example.workouttracker.ui.theme.PageTitle
 
 // Function to display the searchable and grouped workout list
@@ -48,6 +51,7 @@ fun WorkoutListScreen(
     Column(modifier = modifier.fillMaxSize()) {
         PageTitle(
             text = "Home",
+            icon = painterResource(R.drawable.icon_home)
         )
         // Display the search input and dropdown browsing controls
         OutlinedTextField(
@@ -64,7 +68,7 @@ fun WorkoutListScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             ChoiceDropdown(
                 title = "Range",
@@ -116,6 +120,8 @@ fun WorkoutListScreen(
                     "Go to the Log page to record your first workout!"
                 },
                 Modifier.padding(horizontal = 24.dp, vertical = 28.dp),
+                style = EmptyStateTextStyle,
+                color = MaterialTheme.colorScheme.onBackground,
             )
             // Display each visible group and the workouts inside expanded groups
             else -> LazyColumn(
@@ -165,14 +171,18 @@ private fun <T> ChoiceDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier) {
-        OutlinedButton(
-            onClick = { expanded = true },
+        GenericButton(
+            text = "$title: \n${label(selected)}",
+            onClick = { expanded = !expanded },
+            icon = painterResource(
+                if (expanded) R.drawable.icon_collapse
+                else R.drawable.icon_expand
+            ),
+            onCard = true,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-        ) {
-            Text("$title: \n${label(selected)}", maxLines = 2, fontWeight = FontWeight.Bold)
-        }
+        )
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },

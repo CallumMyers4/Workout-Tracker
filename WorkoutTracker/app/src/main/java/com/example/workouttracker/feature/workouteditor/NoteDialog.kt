@@ -29,8 +29,8 @@ fun NoteDialog(
     // Keep track of whether the user is confirming that a stored note should be removed
     var confirmClear by remember { mutableStateOf(false) }
     val scopeDescription = when (state.scope) {
-        NoteScope.WORKOUT_NAME -> "Shared by every workout named '${state.targetName}', ignoring case."
-        NoteScope.EXERCISE -> "Shared by every '${state.targetName}' entry in the exercise library."
+        NoteScope.WORKOUT_NAME -> "Carries over to any workouts with the same name."
+        NoteScope.EXERCISE -> "Carries over to any exercises with the same name, in any workout."
     }
     // Display the note editor and explain which workouts or exercises share its value
     AlertDialog(
@@ -42,7 +42,6 @@ fun NoteDialog(
                 OutlinedTextField(
                     value = state.input,
                     onValueChange = onChanged,
-                    label = { Text("Multiline note") },
                     minLines = 5,
                     maxLines = 12,
                     isError = state.errorMessage != null,

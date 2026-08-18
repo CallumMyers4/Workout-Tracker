@@ -36,24 +36,31 @@ class WorkoutEditorViewModel(
     val uiState: StateFlow<WorkoutEditorUiState> = _uiState.asStateFlow()
     private val _events = MutableSharedFlow<WorkoutEditorEvent>(extraBufferCapacity = 1)
     val events: SharedFlow<WorkoutEditorEvent> = _events.asSharedFlow()
+    private var originalDraft = savedStateHandle.get<WorkoutDraft>(ORIGINAL_DRAFT_KEY)
 
     // Restore an unfinished draft or load the workout selected for editing
     init {
         val restoredDraft = savedStateHandle.get<WorkoutDraft>(DRAFT_KEY)
         val restoredNote = savedStateHandle.get<NoteEditorState>(NOTE_EDITOR_KEY)
+        val workoutId = savedStateHandle.get<Long>("workoutId")
         if (restoredNote != null) _uiState.update { it.copy(noteEditor = restoredNote) }
         if (restoredDraft != null) {
             _uiState.update { it.copy(draft = restoredDraft, isDirty = true) }
-        } else {
-            val workoutId = savedStateHandle.get<Long>("workoutId")
-            if (workoutId != null) {
-                viewModelScope.launch {
-                    runCatching { workoutRepository.observeWorkout(workoutId).filterNotNull().first() }
-                        .onSuccess { workout -> _uiState.update { it.copy(draft = workout.toDraft()) } }
-                        .onFailure { error ->
-                            _uiState.update { it.copy(errorMessage = error.userMessage()) }
+        }
+        if (workoutId != null && (restoredDraft == null || originalDraft == null)) {
+            viewModelScope.launch {
+                runCatching { workoutRepository.observeWorkout(workoutId).filterNotNull().first() }
+                    .onSuccess { workout ->
+                        val loadedDraft = workout.toDraft()
+                        originalDraft = loadedDraft
+                        savedStateHandle[ORIGINAL_DRAFT_KEY] = loadedDraft
+                        if (restoredDraft == null) {
+                            _uiState.update { it.copy(draft = loadedDraft, isDirty = false) }
                         }
-                }
+                    }
+                    .onFailure { error ->
+                        _uiState.update { it.copy(errorMessage = error.userMessage()) }
+                    }
             }
         }
         viewModelScope.launch {
@@ -265,7 +272,9 @@ class WorkoutEditorViewModel(
 
     // Open the clear confirmation when the draft contains unsaved information
     fun requestClear() {
-        if (_uiState.value.isDirty && _uiState.value.draft.hasMeaningfulContent()) {
+        val state = _uiState.value
+        val isEditing = savedStateHandle.get<Long>("workoutId") != null
+        if (state.isDirty && (isEditing || state.draft.hasMeaningfulContent())) {
             _uiState.update { it.copy(showClearConfirmation = true) }
         }
     }
@@ -277,19 +286,26 @@ class WorkoutEditorViewModel(
 
     // Reset the editor to a new blank workout
     fun confirmClear() {
+        val editedWorkoutId = savedStateHandle.get<Long>("workoutId")
+        val clearedDraft = if (editedWorkoutId == null) {
+            WorkoutDraft(date = LocalDate.now())
+        } else {
+            originalDraft ?: return
+        }
         savedStateHandle.remove<WorkoutDraft>(DRAFT_KEY)
         _uiState.update {
             it.copy(
-                draft = WorkoutDraft(date = LocalDate.now()),
+                draft = clearedDraft,
                 isDirty = false,
                 showClearConfirmation = false,
                 validationResult = null,
                 errorMessage = null,
+                statusMessage = null,
             )
         }
     }
 
-    // Validate and save the workout before opening its details page
+    // Validate and save; edits return to Home details while Log resets to a fresh draft
     fun save() {
         if (_uiState.value.isSaving) return
         val draft = _uiState.value.draft
@@ -303,8 +319,20 @@ class WorkoutEditorViewModel(
             runCatching { workoutRepository.saveWorkout(draft) }
                 .onSuccess { workoutId ->
                     savedStateHandle.remove<WorkoutDraft>(DRAFT_KEY)
-                    _uiState.update { it.copy(isSaving = false, isDirty = false) }
-                    _events.emit(WorkoutEditorEvent.Saved(workoutId))
+                    if (draft.workoutId == null) {
+                        _uiState.update {
+                            it.copy(
+                                draft = WorkoutDraft(date = LocalDate.now()),
+                                isSaving = false,
+                                isDirty = false,
+                                validationResult = null,
+                                statusMessage = "Workout saved.",
+                            )
+                        }
+                    } else {
+                        _uiState.update { it.copy(isSaving = false, isDirty = false) }
+                        _events.emit(WorkoutEditorEvent.Saved(workoutId))
+                    }
                 }
                 .onFailure { error ->
                     _uiState.update { it.copy(isSaving = false, errorMessage = error.userMessage()) }
@@ -322,6 +350,7 @@ class WorkoutEditorViewModel(
                 isDirty = true,
                 validationResult = null,
                 errorMessage = null,
+                statusMessage = null,
             )
         }
     }
@@ -362,6 +391,7 @@ class WorkoutEditorViewModel(
 
     private companion object {
         const val DRAFT_KEY = "workout_editor_draft"
+        const val ORIGINAL_DRAFT_KEY = "workout_editor_original_draft"
         const val NOTE_EDITOR_KEY = "workout_note_editor"
     }
 }

@@ -16,9 +16,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.workouttracker.R
+import com.example.workouttracker.ui.theme.EmptyStateTextStyle
 import com.example.workouttracker.ui.theme.PageTitle
 
 // Function to display the goals screen
@@ -34,12 +37,18 @@ fun GoalsScreen(
     Column(modifier.fillMaxSize()) {
         PageTitle(
             text = "Progress",
+            icon = painterResource(R.drawable.icon_progress),
         )
         when {
             // Loading UI
             uiState.isLoading && uiState.goals.isEmpty() -> CircularProgressIndicator(Modifier.padding(all = 24.dp))
             uiState.errorMessage != null && uiState.goals.isEmpty() -> Text(uiState.errorMessage, Modifier.padding(24.dp))
-            uiState.goals.isEmpty() -> Text("Add exercises in Settings to create goals.", Modifier.padding(24.dp))
+            uiState.goals.isEmpty() -> Text(
+                text = "Add exercises in Settings to create goals.",
+                modifier = Modifier.padding(24.dp),
+                style = EmptyStateTextStyle,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
             // Display once loading is complete
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 // Loop over each goal and display a card for it

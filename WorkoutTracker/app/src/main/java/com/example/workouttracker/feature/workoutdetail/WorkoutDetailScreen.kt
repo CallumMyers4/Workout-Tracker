@@ -1,5 +1,6 @@
 package com.example.workouttracker.feature.workoutdetail
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,8 +16,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.workouttracker.R
+import com.example.workouttracker.ui.theme.EmptyStateTextStyle
 import com.example.workouttracker.ui.theme.PageTitle
 import java.time.format.DateTimeFormatter
 
@@ -31,11 +35,17 @@ fun WorkoutDetailScreen(
     onConfirmDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Keep the selected Home destination in sync with both system and title-bar back actions
+    BackHandler(onBack = onBack)
+
     Column(modifier.fillMaxSize()) {
         // Title as the name if available, else none
         uiState.workout?.let {
             PageTitle(
                 text = it.name,
+                icon = painterResource(R.drawable.icon_back),
+                onIconClick = onBack,
+                iconContentDescription = "Back to Home",
             )
         }
         when {
@@ -66,7 +76,14 @@ fun WorkoutDetailScreen(
                         }
                     }
                     if (workout.exercises.isEmpty()) {
-                        item { Text("This workout has no exercises.", Modifier.padding(16.dp)) }
+                        item {
+                            Text(
+                                text = "This workout has no exercises.",
+                                modifier = Modifier.padding(24.dp),
+                                style = EmptyStateTextStyle,
+                                color = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
                     }
                     items(workout.exercises.sortedBy { it.position }, key = { it.id }) { exercise ->
                         ExerciseSummaryCard(exercise, Modifier
