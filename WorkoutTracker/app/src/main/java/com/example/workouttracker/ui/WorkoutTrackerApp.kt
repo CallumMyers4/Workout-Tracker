@@ -12,6 +12,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
@@ -62,9 +63,17 @@ fun WorkoutTrackerApp(
     var activeWorkoutId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Keep an existing-workout edit as Home's active workspace while other tabs are used
     var editingWorkoutId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var pendingTabRoute by remember { mutableStateOf<AppRoute?>(null) }
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        bottomBar = { PrimaryNavigation(navController, activeWorkoutId, editingWorkoutId) },
+        bottomBar = {
+            PrimaryNavigation(
+                navController = navController,
+                activeWorkoutId = activeWorkoutId,
+                editingWorkoutId = editingWorkoutId,
+                onEditExitRequested = { pendingTabRoute = it },
+            )
+        },
     ) { innerPadding ->
         NavHost(
             navController = navController,
@@ -176,6 +185,23 @@ fun WorkoutTrackerApp(
                     isEditing = true,
                     onBack = { returnToDetails(route.workoutId) },
                     onSaved = returnToDetails,
+                    tabExitRequested = pendingTabRoute != null,
+                    onCancelTabExit = { pendingTabRoute = null },
+                    onConfirmTabExit = {
+                        pendingTabRoute?.let { destination ->
+                            pendingTabRoute = null
+                            activeWorkoutId = null
+                            editingWorkoutId = null
+                            navController.navigate(destination) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    // Discard the retained detail/editor stack so Home reopens the list.
+                                    saveState = false
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    },
                 )
             }
             // Create the exercise goals page
@@ -241,6 +267,9 @@ private fun WorkoutEditorDestination(
     isEditing: Boolean,
     onBack: () -> Unit,
     onSaved: (Long) -> Unit,
+    tabExitRequested: Boolean = false,
+    onCancelTabExit: () -> Unit = {},
+    onConfirmTabExit: () -> Unit = {},
 ) {
     val model: WorkoutEditorViewModel = viewModel(
         factory = viewModelFactory {
@@ -264,6 +293,9 @@ private fun WorkoutEditorDestination(
         uiState = state,
         isEditing = isEditing,
         onBack = onBack,
+        tabExitRequested = tabExitRequested,
+        onCancelTabExit = onCancelTabExit,
+        onConfirmTabExit = onConfirmTabExit,
         onNameChanged = model::updateWorkoutName,
         onAddExercise = model::addExercise,
         onRemoveExercise = model::removeExercise,
@@ -302,6 +334,7 @@ private fun PrimaryNavigation(
     navController: NavHostController,
     activeWorkoutId: Long?,
     editingWorkoutId: Long?,
+    onEditExitRequested: (AppRoute) -> Unit,
 ) {
     // Hide navigation while typing to leave more room above the keyboard
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -353,7 +386,16 @@ private fun PrimaryNavigation(
                 selected = selected,
                 onClick = {
                     if (!selected) {
-                        navController.navigate(item.route) {
+                        if (destination?.hasRoute(AppRoute.EditWorkout::class) == true) {
+                            onEditExitRequested(item.route)
+                        } else if (item.tab == PrimaryTab.HOME) {
+                            // Home is the graph's start destination. Pop directly to it rather
+                            // than saving and immediately restoring the current tab on top of it.
+                            navController.popBackStack(
+                                navController.graph.findStartDestination().id,
+                                false,
+                            )
+                        } else navController.navigate(item.route) {
                             // Preserve each tab's page state and unfinished workout values
                             popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true

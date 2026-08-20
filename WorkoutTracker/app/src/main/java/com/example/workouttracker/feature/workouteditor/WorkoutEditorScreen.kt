@@ -49,6 +49,9 @@ fun WorkoutEditorScreen(
     uiState: WorkoutEditorUiState,
     isEditing: Boolean,
     onBack: () -> Unit,
+    tabExitRequested: Boolean = false,
+    onCancelTabExit: () -> Unit = {},
+    onConfirmTabExit: () -> Unit = {},
     onNameChanged: (String) -> Unit,
     onAddExercise: () -> Unit,
     onRemoveExercise: (Int) -> Unit,
@@ -78,6 +81,11 @@ fun WorkoutEditorScreen(
         if (uiState.isDirty) showDiscardConfirmation = true else onBack()
     }
     BackHandler(enabled = isEditing, onBack = requestBack)
+    LaunchedEffect(tabExitRequested) {
+        if (tabExitRequested) {
+            if (uiState.isDirty) showDiscardConfirmation = true else onConfirmTabExit()
+        }
+    }
     // Scroll to an exercise when one of its inputs fails validation
     LaunchedEffect(invalid) {
         invalid?.exerciseIndex?.let { listState.animateScrollToItem(it) }
@@ -195,14 +203,22 @@ fun WorkoutEditorScreen(
     }
     if (showDiscardConfirmation) {
         AlertDialog(
-            onDismissRequest = { showDiscardConfirmation = false },
+            onDismissRequest = {
+                showDiscardConfirmation = false
+                if (tabExitRequested) onCancelTabExit()
+            },
             title = { Text("Discard changes?") },
             text = { Text("Your unsaved changes to this workout will be lost.") },
             confirmButton = {
-                TextButton(onClick = onBack) { Text("Discard") }
+                TextButton(onClick = {
+                    if (tabExitRequested) onConfirmTabExit() else onBack()
+                }) { Text("Discard") }
             },
             dismissButton = {
-                TextButton(onClick = { showDiscardConfirmation = false }) {
+                TextButton(onClick = {
+                    showDiscardConfirmation = false
+                    if (tabExitRequested) onCancelTabExit()
+                }) {
                     Text("Keep editing")
                 }
             },
