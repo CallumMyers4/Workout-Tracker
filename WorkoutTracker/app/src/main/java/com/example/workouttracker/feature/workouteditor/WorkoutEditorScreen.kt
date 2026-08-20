@@ -1,5 +1,6 @@
 package com.example.workouttracker.feature.workouteditor
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,12 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
@@ -31,9 +29,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.example.workouttracker.R
 import com.example.workouttracker.core.result.ValidationResult
+import com.example.workouttracker.ui.theme.ActionButton
+import com.example.workouttracker.ui.theme.DestructiveButton
+import com.example.workouttracker.ui.theme.GenericButton
 import com.example.workouttracker.ui.theme.PageTitle
 import java.time.Instant
 import java.time.LocalDate
@@ -45,8 +47,12 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun WorkoutEditorScreen(
     uiState: WorkoutEditorUiState,
+    isEditing: Boolean,
+    onBack: () -> Unit,
+    tabExitRequested: Boolean = false,
+    onCancelTabExit: () -> Unit = {},
+    onConfirmTabExit: () -> Unit = {},
     onNameChanged: (String) -> Unit,
-    onDateChanged: (LocalDate) -> Unit,
     onAddExercise: () -> Unit,
     onRemoveExercise: (Int) -> Unit,
     onExerciseSelected: (Int, Long) -> Unit,
@@ -68,9 +74,18 @@ fun WorkoutEditorScreen(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    var showDatePicker by remember { mutableStateOf(false) }
+    var showDiscardConfirmation by remember { mutableStateOf(false) }
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val invalid = uiState.validationResult as? ValidationResult.Invalid
+    val requestBack = {
+        if (uiState.isDirty) showDiscardConfirmation = true else onBack()
+    }
+    BackHandler(enabled = isEditing, onBack = requestBack)
+    LaunchedEffect(tabExitRequested) {
+        if (tabExitRequested) {
+            if (uiState.isDirty) showDiscardConfirmation = true else onConfirmTabExit()
+        }
+    }
     // Scroll to an exercise when one of its inputs fails validation
     LaunchedEffect(invalid) {
         invalid?.exerciseIndex?.let { listState.animateScrollToItem(it) }
@@ -80,7 +95,12 @@ fun WorkoutEditorScreen(
         // Keep workout information fixed above the scrolling exercise list
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             PageTitle(
-                "Log",
+                text = if (isEditing) "Edit workout" else "Log",
+                icon = painterResource(
+                    if (isEditing) R.drawable.icon_back else R.drawable.icon_add
+                ),
+                onIconClick = if (isEditing) requestBack else null,
+                iconContentDescription = if (isEditing) "Back to workout details" else null,
             )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -93,18 +113,20 @@ fun WorkoutEditorScreen(
                     label = { Text("Workout name") },
                     singleLine = true,
                     isError = invalid?.field == com.example.workouttracker.core.result.WorkoutField.NAME,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1.5f),
                 )
-                OutlinedButton(onClick = { showDatePicker = true }) {
-                    Text(uiState.draft.date.format(EDITOR_DATE_FORMAT))
                 }
-            }
-            OutlinedButton(
+
+            GenericButton(
+                text = "Notes",
                 onClick = onOpenWorkoutNote,
                 enabled = uiState.draft.name.isNotBlank(),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            ) { Text("Workout note (shared by workout name)") }
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+            )
             uiState.errorMessage?.let { Text(it, Modifier.padding(horizontal = 16.dp)) }
+            uiState.statusMessage?.let { Text(it, Modifier.padding(horizontal = 16.dp)) }
             invalid?.let { Text(it.message, Modifier.padding(horizontal = 16.dp)) }
         }
         // Display each exercise inside the scrolling section of the page
@@ -133,77 +155,73 @@ fun WorkoutEditorScreen(
         // Hide workout action buttons while typing to leave more room above the keyboard
         if (!keyboardVisible) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.Absolute.SpaceEvenly,
             ) {
-                // Clear button
-                OutlinedButton(
+                // Clear a new draft or restore an edit to its originally loaded values
+                DestructiveButton(
+                    text = if (isEditing) "Reset" else "Clear",
                     onClick = onRequestClear,
+                    enabled = !uiState.isSaving && (!isEditing || uiState.isDirty),
+                )
+
+                // Create add exercise button
+                GenericButton(
+                    text = "Add Exercise",
+                    onClick = onAddExercise,
+                )
+
+                // Create save button
+                ActionButton(
+                    text = "Save",
+                    onClick = onSave,
                     enabled = !uiState.isSaving,
-                    modifier = Modifier.weight(1f),
-                ) { Text("Clear", fontWeight = FontWeight.Bold) }
-                // Add Exercise button
-                OutlinedButton(onClick = onAddExercise, modifier = Modifier.weight(1.5f)) {
-                    Text("Add Exercise", fontWeight = FontWeight.Bold)
-                }
-                // Save button
-                Button(onClick = onSave, enabled = !uiState.isSaving, modifier = Modifier.weight(1f)) {
-                    if (uiState.isSaving) CircularProgressIndicator() else
-                        Text("Save", fontWeight = FontWeight.Bold)
-                }
+                )
             }
         }
     }
 
-    // Display the date picker using a limited range around the current year
-    if (showDatePicker) {
-        val today = LocalDate.now()
-        val firstDate = LocalDate.of(today.year - 20, 1, 1)
-        val lastDate = LocalDate.of(today.year + 5, 12, 31)
-        val initialMillis = uiState.draft.date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        val pickerState = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = initialMillis,
-            yearRange = firstDate.year..lastDate.year,
-            selectableDates = remember(firstDate, lastDate) {
-                object : SelectableDates {
-                    override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                        val date = Instant.ofEpochMilli(utcTimeMillis)
-                            .atZone(ZoneOffset.UTC)
-                            .toLocalDate()
-                        return date in firstDate..lastDate
-                    }
-
-                    override fun isSelectableYear(year: Int): Boolean = year in firstDate.year..lastDate.year
-                }
-            },
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let {
-                        onDateChanged(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())
-                    }
-                    showDatePicker = false
-                }) { Text("Use date") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    onDateChanged(today)
-                    showDatePicker = false
-                }) { Text("Today") }
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
-            },
-        ) { DatePicker(pickerState) }
-    }
-    // Ask for confirmation before clearing an unfinished workout
+    // Ask for confirmation before clearing or resetting a workout
     if (uiState.showClearConfirmation) {
         AlertDialog(
             onDismissRequest = onCancelClear,
-            title = { Text("Clear workout?") },
-            text = { Text("All unsaved input in this editor will be removed.") },
-            confirmButton = { TextButton(onClick = onConfirmClear) { Text("Clear") } },
+            title = { Text(if (isEditing) "Reset workout?" else "Clear workout?") },
+            text = {
+                Text(
+                    if (isEditing) "Restore this workout to how it was when editing began."
+                    else "All unsaved input in this editor will be removed."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = onConfirmClear) {
+                    Text(if (isEditing) "Reset" else "Clear")
+                }
+            },
             dismissButton = { TextButton(onClick = onCancelClear) { Text("Cancel") } },
+        )
+    }
+    if (showDiscardConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                showDiscardConfirmation = false
+                if (tabExitRequested) onCancelTabExit()
+            },
+            title = { Text("Discard changes?") },
+            text = { Text("Your unsaved changes to this workout will be lost.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (tabExitRequested) onConfirmTabExit() else onBack()
+                }) { Text("Discard") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDiscardConfirmation = false
+                    if (tabExitRequested) onCancelTabExit()
+                }) {
+                    Text("Keep editing")
+                }
+            },
         )
     }
     // Display the note editor when a workout or exercise note has been opened

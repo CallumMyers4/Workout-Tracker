@@ -14,6 +14,7 @@ data class WorkoutEditorUiState(
     val showClearConfirmation: Boolean = false,
     val validationResult: ValidationResult? = null,
     val errorMessage: String? = null,
+    val statusMessage: String? = null,
     val noteEditor: NoteEditorState? = null,
 )
 
@@ -36,6 +37,6 @@ enum class NoteScope : Serializable {
 
 // One-time action sent by the workout editor page
 sealed interface WorkoutEditorEvent {
-    // Tell the app to open the workout after it has been saved
+    // Tell Home to return to the updated workout after an edit is saved
     data class Saved(val workoutId: Long) : WorkoutEditorEvent
 }

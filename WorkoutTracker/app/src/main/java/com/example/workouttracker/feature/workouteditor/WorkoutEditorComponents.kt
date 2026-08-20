@@ -12,8 +12,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -26,17 +27,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.workouttracker.R
 import com.example.workouttracker.core.model.CatalogExercise
 import com.example.workouttracker.core.model.ExerciseSetDraft
 import com.example.workouttracker.core.model.WorkoutExerciseDraft
+import com.example.workouttracker.ui.theme.GenericButton
+import com.example.workouttracker.ui.theme.GenericCard
 
 // Create an editable card for one exercise and all of its sets
 @Composable
@@ -60,76 +65,101 @@ fun ExerciseEditorCard(
     var confirmExerciseRemoval by remember { mutableStateOf(false) }
     var confirmSetRemoval by remember { mutableStateOf<Int?>(null) }
 
-    Card(modifier) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+    GenericCard(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(
+                onClick = onToggle,
+                modifier = Modifier
+                    .padding()
             ) {
-                // Use the exercise name as the button which opens the exercise picker
-                OutlinedButton(
-                    onClick = { showPicker = true },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(exercise.name.ifBlank { "Select exercise" })
-                }
-                // Confirm removal when the exercise already contains entered information
-                TextButton(
-                    onClick = {
-                        val hasContent = exercise.catalogExerciseId != null ||
+                Icon(
+                    painter = painterResource(
+                        if (exercise.expanded) R.drawable.icon_collapse
+                        else R.drawable.icon_expand
+                    ),
+                    contentDescription = if (exercise.expanded) {
+                        "Collapse exercise"
+                    } else {
+                        "Expand exercise"
+                    },
+                )
+            }
+
+            // Use the exercise name as the button which opens the exercise picker
+            GenericButton(
+                text = exercise.name.ifBlank { "Select exercise" },
+                onClick = { showPicker = true },
+                onCard = true,
+                modifier = Modifier.weight(1f),
+            )
+
+            // Button to remove the exercise
+            IconButton(
+                onClick = {
+                    val hasContent = exercise.catalogExerciseId != null ||
                             exercise.sets.any { it.reps.isNotBlank() || it.weightKg.isNotBlank() }
-                        if (hasContent) confirmExerciseRemoval = true else onRemove()
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color.Red),
-                    modifier = Modifier.size(40.dp).semantics {
-                        contentDescription = "Remove exercise ${exerciseIndex + 1}"
-                    },
-                ) { Text("X") }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    if (hasContent) confirmExerciseRemoval = true else onRemove()
+                },
+                modifier = Modifier
+                    .size(40.dp)
             ) {
-                TextButton(
-                    onClick = onToggle,
-                    modifier = Modifier.weight(1f).semantics {
-                        contentDescription =
-                            "${if (exercise.expanded) "Collapse" else "Expand"} exercise ${exerciseIndex + 1}"
-                        stateDescription = if (exercise.expanded) "Expanded" else "Collapsed"
-                    },
-                ) { Text(if (exercise.expanded) "Hide" else "Show") }
-                TextButton(onClick = onAddSet, modifier = Modifier.weight(1f)) { Text("Add set") }
-                TextButton(
-                    onClick = onOpenNote,
-                    enabled = exercise.catalogExerciseId != null,
-                    modifier = Modifier.weight(1f),
-                ) { Text("Notes") }
+                Icon(
+                    painter = painterResource(R.drawable.icon_trash),
+                    contentDescription = "Remove exercise",
+                )
             }
-            if (exercise.expanded) {
-                // Display an editable row for each set when the exercise is expanded
-                exercise.sets.forEachIndexed { setIndex, set ->
-                    SetEditorRow(
-                        set = set,
-                        setIndex = setIndex,
-                        onChanged = { reps, weight -> onSetChanged(setIndex, reps, weight) },
-                        onRemove = {
-                            if (set.reps.isNotBlank() || set.weightKg.isNotBlank()) {
-                                confirmSetRemoval = setIndex
-                            } else {
-                                onRemoveSet(setIndex)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            } else {
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TextButton(onClick = onAddSet, modifier = Modifier.weight(1f)) {
+                Text(
+                    "Add set",
+                    style = MaterialTheme.typography.displaySmall
+                )
+            }
+            TextButton(
+                onClick = onOpenNote,
+                enabled = exercise.catalogExerciseId != null,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    "Notes",
+                    style = MaterialTheme.typography.displaySmall
+                )
+            }
+        }
+        if (exercise.expanded) {
+            // Display an editable row for each set when the exercise is expanded
+            exercise.sets.forEachIndexed { setIndex, set ->
+                SetEditorRow(
+                    set = set,
+                    setIndex = setIndex,
+                    onChanged = { reps, weight -> onSetChanged(setIndex, reps, weight) },
+                    onRemove = {
+                        if (set.reps.isNotBlank() || set.weightKg.isNotBlank()) {
+                            confirmSetRemoval = setIndex
+                        } else {
+                            onRemoveSet(setIndex)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        } else {
+            Row(
+                modifier = Modifier.padding(start = 12.dp),
+            ) {
                 // Display a compact set summary when the exercise is hidden
                 Text(
-                    "${exercise.sets.size} set${if (exercise.sets.size == 1) "" else "s"}: " +
-                        exercise.sets.joinToString(" • ") {
-                            "${it.reps.ifBlank { "?" }} × ${it.weightKg.ifBlank { "?" }} kg"
-                        },
+                    "${exercise.sets.size} set${if (exercise.sets.size == 1) "" else "s"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontStyle = FontStyle.Italic
                 )
             }
         }
@@ -158,7 +188,12 @@ fun ExerciseEditorCard(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    if (query.isNotEmpty() && catalog.none { it.name.equals(query, ignoreCase = true) }) {
+                    if (query.isNotEmpty() && catalog.none {
+                            it.name.equals(
+                                query,
+                                ignoreCase = true
+                            )
+                        }) {
                         TextButton(
                             onClick = {
                                 onCreateExercise(query)
@@ -171,7 +206,11 @@ fun ExerciseEditorCard(
                     when {
                         catalog.isEmpty() -> Text("No exercises are available. Add one in Settings first.")
                         matchingExercises.isEmpty() -> Text("No exercises match your search.")
-                        else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
+                        else -> LazyColumn(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 360.dp)
+                        ) {
                             items(matchingExercises, key = { it.id }) { option ->
                                 TextButton(
                                     onClick = {
@@ -226,7 +265,11 @@ fun ExerciseEditorCard(
                     onRemoveSet(setIndex)
                 }) { Text("Remove") }
             },
-            dismissButton = { TextButton(onClick = { confirmSetRemoval = null }) { Text("Cancel") } },
+            dismissButton = {
+                TextButton(onClick = {
+                    confirmSetRemoval = null
+                }) { Text("Cancel") }
+            },
         )
     }
 }
@@ -244,46 +287,50 @@ fun SetEditorRow(
     // Check the entered text without changing it while the user is typing
     val repsInvalid = set.reps.isNotEmpty() && (set.reps.toIntOrNull()?.let { it <= 0 } != false)
     val weight = set.weightKg.toDoubleOrNull()
-    val weightInvalid = set.weightKg.isNotEmpty() && (weight == null || !weight.isFinite() || weight < 0.0)
+    val weightInvalid =
+        set.weightKg.isNotEmpty() && (weight == null || !weight.isFinite() || weight < 0.0)
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-            OutlinedTextField(
-                value = set.reps,
-                onValueChange = { onChanged(it, set.weightKg) },
-                label = { Text("Set ${setIndex + 1} reps") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Done,
-                ),
-                keyboardActions = dismissKeyboardActions(focusManager),
-                isError = repsInvalid,
-                supportingText = if (repsInvalid) ({ Text("Positive whole number") }) else null,
-                modifier = Modifier.weight(1f),
+        OutlinedTextField(
+            value = set.reps,
+            onValueChange = { onChanged(it, set.weightKg) },
+            label = { Text("Set ${setIndex + 1} reps") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = ImeAction.Done,
+            ),
+            keyboardActions = dismissKeyboardActions(focusManager),
+            isError = repsInvalid,
+            supportingText = if (repsInvalid) ({ Text("Positive whole number") }) else null,
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedTextField(
+            value = set.weightKg,
+            onValueChange = { onChanged(set.reps, it) },
+            label = { Text("Weight kg") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Decimal,
+                imeAction = ImeAction.Done,
+            ),
+            keyboardActions = dismissKeyboardActions(focusManager),
+            isError = weightInvalid,
+            supportingText = if (weightInvalid) ({ Text("Zero or more") }) else null,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.icon_trash),
+                contentDescription = "Remove set ${setIndex + 1}",
             )
-            OutlinedTextField(
-                value = set.weightKg,
-                onValueChange = { onChanged(set.reps, it) },
-                label = { Text("Weight kg") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Decimal,
-                    imeAction = ImeAction.Done,
-                ),
-                keyboardActions = dismissKeyboardActions(focusManager),
-                isError = weightInvalid,
-                supportingText = if (weightInvalid) ({ Text("Zero or more") }) else null,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(
-                onClick = onRemove,
-                modifier = Modifier.size(40.dp).semantics {
-                    contentDescription = "Remove set ${setIndex + 1}"
-                },
-            ) { Text("X") }
+        }
     }
 }
 

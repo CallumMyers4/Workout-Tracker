@@ -1,5 +1,6 @@
 package com.example.workouttracker.ui
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -7,23 +8,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
+import androidx.navigation.toRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -31,6 +33,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.workouttracker.AppContainer
+import com.example.workouttracker.R
 import com.example.workouttracker.domain.service.WorkoutValidator
 import com.example.workouttracker.feature.goals.GoalsScreen
 import com.example.workouttracker.feature.goals.GoalsViewModel
@@ -46,6 +49,7 @@ import com.example.workouttracker.feature.workouteditor.WorkoutEditorViewModel
 import com.example.workouttracker.feature.workoutlist.WorkoutListScreen
 import com.example.workouttracker.feature.workoutlist.WorkoutListViewModel
 import com.example.workouttracker.navigation.AppRoute
+import com.example.workouttracker.ui.theme.BottomNavigationButton
 
 // Create the navigation graph and connect each page to its ViewModel
 @Composable
@@ -57,9 +61,19 @@ fun WorkoutTrackerApp(
     val navController = rememberNavController()
     // Keep the selected workout ID so Home can return to its details page
     var activeWorkoutId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Keep an existing-workout edit as Home's active workspace while other tabs are used
+    var editingWorkoutId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var pendingTabRoute by remember { mutableStateOf<AppRoute?>(null) }
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        bottomBar = { PrimaryNavigation(navController, activeWorkoutId) },
+        bottomBar = {
+            PrimaryNavigation(
+                navController = navController,
+                activeWorkoutId = activeWorkoutId,
+                editingWorkoutId = editingWorkoutId,
+                onEditExitRequested = { pendingTabRoute = it },
+            )
+        },
     ) { innerPadding ->
         NavHost(
             navController = navController,
@@ -88,6 +102,7 @@ fun WorkoutTrackerApp(
                     onGroupToggled = model::toggleGroup,
                     onWorkoutSelected = {
                         activeWorkoutId = it
+                        editingWorkoutId = null
                         navController.navigate(AppRoute.WorkoutDetail(it))
                     },
                     onLoadMore = model::loadMore,
@@ -111,6 +126,7 @@ fun WorkoutTrackerApp(
                     model.events.collect { event ->
                         if (event == WorkoutDetailEvent.Deleted) {
                             activeWorkoutId = null
+                            editingWorkoutId = null
                             navController.navigate(AppRoute.WorkoutList) {
                                 popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
                                 launchSingleTop = true
@@ -122,62 +138,70 @@ fun WorkoutTrackerApp(
                     uiState = state,
                     onBack = {
                         activeWorkoutId = null
-                        navController.popBackStack()
+                        editingWorkoutId = null
+                        navController.navigate(AppRoute.WorkoutList) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                inclusive = false
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     },
-                    onEdit = { navController.navigate(AppRoute.WorkoutEditor(it)) },
+                    onEdit = {
+                        editingWorkoutId = it
+                        navController.navigate(AppRoute.EditWorkout(it))
+                    },
                     onRequestDelete = model::requestDelete,
                     onCancelDelete = model::cancelDelete,
                     onConfirmDelete = model::confirmDelete,
                 )
             }
-            // Create the new or edit workout page
+            // Keep the Log tab as an independent new-workout workspace
             composable<AppRoute.WorkoutEditor> {
-                val model: WorkoutEditorViewModel = viewModel(
-                    factory = viewModelFactory {
-                        initializer {
-                            WorkoutEditorViewModel(
-                                createSavedStateHandle(),
-                                container.workoutRepository,
-                                container.exerciseRepository,
-                                WorkoutValidator(),
-                            )
-                        }
-                    },
+                WorkoutEditorDestination(
+                    container = container,
+                    isEditing = false,
+                    onBack = { navController.popBackStack() },
+                    onSaved = {},
                 )
-                val state by model.uiState.collectAsStateWithLifecycle()
-                // Open the workout details page after a successful save
-                LaunchedEffect(model) {
-                    model.events.collect { event ->
-                        if (event is WorkoutEditorEvent.Saved) {
-                            activeWorkoutId = event.workoutId
-                            navController.navigate(AppRoute.WorkoutDetail(event.workoutId)) {
-                                popUpTo<AppRoute.WorkoutEditor> { inclusive = true }
-                            }
-                        }
+            }
+            // Draw an existing-workout editor inside Home's retained navigation state
+            composable<AppRoute.EditWorkout> { backStackEntry ->
+                val route = backStackEntry.toRoute<AppRoute.EditWorkout>()
+                LaunchedEffect(route.workoutId) {
+                    activeWorkoutId = route.workoutId
+                    editingWorkoutId = route.workoutId
+                }
+                val returnToDetails: (Long) -> Unit = { workoutId ->
+                    activeWorkoutId = workoutId
+                    editingWorkoutId = null
+                    navController.navigate(AppRoute.WorkoutDetail(workoutId)) {
+                        popUpTo<AppRoute.EditWorkout> { inclusive = true }
+                        launchSingleTop = true
                     }
                 }
-                WorkoutEditorScreen(
-                    uiState = state,
-                    onNameChanged = model::updateWorkoutName,
-                    onDateChanged = model::updateWorkoutDate,
-                    onAddExercise = model::addExercise,
-                    onRemoveExercise = model::removeExercise,
-                    onExerciseSelected = model::selectExercise,
-                    onExerciseCreated = model::createAndSelectExercise,
-                    onOpenWorkoutNote = model::openWorkoutNote,
-                    onOpenExerciseNote = model::openExerciseNote,
-                    onNoteChanged = model::updateNote,
-                    onSaveNote = model::saveNote,
-                    onClearNote = model::clearNote,
-                    onCloseNote = model::closeNote,
-                    onExerciseToggled = model::toggleExerciseExpanded,
-                    onAddSet = model::addSet,
-                    onRemoveSet = model::removeSet,
-                    onSetChanged = model::updateSet,
-                    onRequestClear = model::requestClear,
-                    onCancelClear = model::cancelClear,
-                    onConfirmClear = model::confirmClear,
-                    onSave = model::save,
+                WorkoutEditorDestination(
+                    container = container,
+                    isEditing = true,
+                    onBack = { returnToDetails(route.workoutId) },
+                    onSaved = returnToDetails,
+                    tabExitRequested = pendingTabRoute != null,
+                    onCancelTabExit = { pendingTabRoute = null },
+                    onConfirmTabExit = {
+                        pendingTabRoute?.let { destination ->
+                            pendingTabRoute = null
+                            activeWorkoutId = null
+                            editingWorkoutId = null
+                            navController.navigate(destination) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    // Discard the retained detail/editor stack so Home reopens the list.
+                                    saveState = false
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    },
                 )
             }
             // Create the exercise goals page
@@ -236,9 +260,82 @@ fun WorkoutTrackerApp(
     }
 }
 
+// Scope each create/edit destination to its own ViewModel and saved draft
+@Composable
+private fun WorkoutEditorDestination(
+    container: AppContainer,
+    isEditing: Boolean,
+    onBack: () -> Unit,
+    onSaved: (Long) -> Unit,
+    tabExitRequested: Boolean = false,
+    onCancelTabExit: () -> Unit = {},
+    onConfirmTabExit: () -> Unit = {},
+) {
+    val model: WorkoutEditorViewModel = viewModel(
+        factory = viewModelFactory {
+            initializer {
+                WorkoutEditorViewModel(
+                    createSavedStateHandle(),
+                    container.workoutRepository,
+                    container.exerciseRepository,
+                    WorkoutValidator(),
+                )
+            }
+        },
+    )
+    val state by model.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(model) {
+        model.events.collect { event ->
+            if (event is WorkoutEditorEvent.Saved) onSaved(event.workoutId)
+        }
+    }
+    WorkoutEditorScreen(
+        uiState = state,
+        isEditing = isEditing,
+        onBack = onBack,
+        tabExitRequested = tabExitRequested,
+        onCancelTabExit = onCancelTabExit,
+        onConfirmTabExit = onConfirmTabExit,
+        onNameChanged = model::updateWorkoutName,
+        onAddExercise = model::addExercise,
+        onRemoveExercise = model::removeExercise,
+        onExerciseSelected = model::selectExercise,
+        onExerciseCreated = model::createAndSelectExercise,
+        onOpenWorkoutNote = model::openWorkoutNote,
+        onOpenExerciseNote = model::openExerciseNote,
+        onNoteChanged = model::updateNote,
+        onSaveNote = model::saveNote,
+        onClearNote = model::clearNote,
+        onCloseNote = model::closeNote,
+        onExerciseToggled = model::toggleExerciseExpanded,
+        onAddSet = model::addSet,
+        onRemoveSet = model::removeSet,
+        onSetChanged = model::updateSet,
+        onRequestClear = model::requestClear,
+        onCancelClear = model::cancelClear,
+        onConfirmClear = model::confirmClear,
+        onSave = model::save,
+    )
+}
+
+// Create a class for each item detail
+private data class NavigationItem(
+    val tab: PrimaryTab,
+    val label: String,
+    val route: AppRoute,
+    @param:DrawableRes val iconResource: Int,
+)
+
+private enum class PrimaryTab { HOME, LOG, PROGRESS, SETTINGS }
+
 // Display the main navigation bar and open the selected page
 @Composable
-private fun PrimaryNavigation(navController: NavHostController, activeWorkoutId: Long?) {
+private fun PrimaryNavigation(
+    navController: NavHostController,
+    activeWorkoutId: Long?,
+    editingWorkoutId: Long?,
+    onEditExitRequested: (AppRoute) -> Unit,
+) {
     // Hide navigation while typing to leave more room above the keyboard
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     if (keyboardVisible) return
@@ -246,27 +343,61 @@ private fun PrimaryNavigation(navController: NavHostController, activeWorkoutId:
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
     val items = listOf(
-        "Home" to (activeWorkoutId?.let { AppRoute.WorkoutDetail(it) } ?: AppRoute.WorkoutList),
-        "Log" to AppRoute.WorkoutEditor(),
-        "Progress" to AppRoute.Goals,
-        "Settings" to AppRoute.Settings,
+        NavigationItem(
+            tab = PrimaryTab.HOME,
+            label = "Home",
+            route = editingWorkoutId?.let { AppRoute.EditWorkout(it) }
+                ?: activeWorkoutId?.let { AppRoute.WorkoutDetail(it) }
+                ?: AppRoute.WorkoutList,
+            iconResource = R.drawable.icon_home,
+        ),
+        NavigationItem(
+            PrimaryTab.LOG,
+            "Log",
+            AppRoute.WorkoutEditor,
+            R.drawable.icon_add,
+        ),
+        NavigationItem(
+            PrimaryTab.PROGRESS,
+            "Progress",
+            AppRoute.Goals,
+            R.drawable.icon_progress,
+        ),
+        NavigationItem(
+            PrimaryTab.SETTINGS,
+            "Settings",
+            AppRoute.Settings,
+            R.drawable.icon_settings,
+        ),
     )
     NavigationBar(Modifier.fillMaxWidth()) {
-        items.forEach { (label, route) ->
-            NavigationBarItem(
-                selected = destination?.hasRoute(route::class) == true,
+        items.forEach { item ->
+            val selected = when (item.tab) {
+                PrimaryTab.HOME -> destination?.hasRoute(AppRoute.WorkoutList::class) == true ||
+                        destination?.hasRoute(AppRoute.WorkoutDetail::class) == true ||
+                        destination?.hasRoute(AppRoute.EditWorkout::class) == true
+                PrimaryTab.LOG -> destination?.hasRoute(AppRoute.WorkoutEditor::class) == true
+                PrimaryTab.PROGRESS -> destination?.hasRoute(AppRoute.Goals::class) == true
+                PrimaryTab.SETTINGS -> destination?.hasRoute(AppRoute.Settings::class) == true
+            }
+            BottomNavigationButton(
+                label = item.label,
+                icon = painterResource(item.iconResource),
+                selected = selected,
                 onClick = {
-                    navController.navigate(route) {
-                        // Preserve each tab's page state and unfinished workout values
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
+                    if (!selected) {
+                        if (destination?.hasRoute(AppRoute.EditWorkout::class) == true) {
+                            onEditExitRequested(item.route)
+                        } else navController.navigate(item.route) {
+                            // Preserve each tab's page state and unfinished workout values
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                        launchSingleTop = true
-                        restoreState = true
                     }
                 },
-                icon = { Text(label.take(1)) },
-                label = { Text(label) },
             )
         }
     }

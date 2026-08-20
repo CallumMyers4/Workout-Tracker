@@ -16,7 +16,7 @@ jobs:
   build-release:
     if: >
       github.event_name == 'workflow_dispatch' ||
-      contains(github.event.head_commit.message, '--build_mobile_apk') ||
+      contains(github.event.head_commit.message, '--build') ||
       github.ref == 'refs/heads/main' ||
       github.ref == 'refs/heads/master'
     name: Build signed APK and AAB

@@ -10,7 +10,9 @@ sealed interface AppRoute {
     @Serializable
     data class WorkoutDetail(val workoutId: Long) : AppRoute
     @Serializable
-    data class WorkoutEditor(val workoutId: Long? = null) : AppRoute
+    data object WorkoutEditor : AppRoute
+    @Serializable
+    data class EditWorkout(val workoutId: Long) : AppRoute
     @Serializable
     data object Goals : AppRoute
     @Serializable
