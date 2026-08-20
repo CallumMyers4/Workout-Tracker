@@ -12,6 +12,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.workouttracker.core.model.ExerciseProgress
+import com.example.workouttracker.ui.theme.ActionButton
 import com.example.workouttracker.ui.theme.GenericCard
 import java.math.BigDecimal
 import java.text.NumberFormat
@@ -36,21 +37,22 @@ fun GoalCard(
         DataRow(
             name = "Best: ",
             data = progress.bestSet?.let { "${it.reps}x${it.weightKg.asWeight()}" }
-                    ?: "Best: 0x0kg"
+                    ?: "No sets found"
         )
         // Create a row for progress % if goal is set
         if (progress.exercise.goalKg != null)
-            DataRow(
-                name = "Progress: ",
-                data = progress.percentage.let { PERCENT_FORMAT.format(it) + "%" }
-            )
+                DataRow(
+                    name = "Progress: ",
+                    data = progress.percentage
+                        ?.let { PERCENT_FORMAT.format(it) + "%" }
+                        ?: "No sets found"
+                )
         // Create a button to update the goal
-        TextButton(
+        ActionButton(
             onClick = onUpdateGoal,
-            modifier = Modifier.semantics {
-                contentDescription = "Update goal for ${progress.exercise.name}"
-            },
-        ) { Text("Update goal") }
+            text = "Update Goal",
+            onCard = true
+        )
     }
 }
 
