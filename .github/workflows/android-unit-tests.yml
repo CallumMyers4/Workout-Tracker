@@ -1,4 +1,4 @@
-name: Android unit tests
+name: Android tests
 
 on:
   push:
@@ -11,15 +11,26 @@ on:
       - ".github/workflows/android-unit-tests.yml"
   workflow_dispatch:
 
-# Unit tests only need read access to the checked-out source code.
 permissions:
   contents: read
 
 jobs:
-  unit-tests:
-    name: Run JVM unit tests
+  jvm-tests:
+    name: Test area ${{ matrix.area }} - ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - area: 1
+            name: Domain logic
+            test-args: >-
+              --tests com.example.workouttracker.domain.*
+              --tests com.example.workouttracker.ExampleUnitTest
+          - area: 2
+            name: Backup
+            test-args: --tests com.example.workouttracker.data.backup.*
     defaults:
       run:
         working-directory: WorkoutTracker
@@ -37,15 +48,63 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Install Android API 36
-        run: sdkmanager "platforms;android-36"
-
-      # This validates the Gradle wrapper and caches dependencies between workflow runs.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
-        
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
 
-      - name: Run unit tests
-        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Run ${{ matrix.name }} tests
+        run: ./gradlew :app:testDebugUnitTest ${{ matrix.test-args }} --no-daemon --stacktrace
+
+  instrumented-tests:
+    name: Test area ${{ matrix.area }} - ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - area: 3
+            name: Repositories and database
+            test-classes: com.example.workouttracker.data.RoomRepositoryTest,com.example.workouttracker.ExampleInstrumentedTest
+          - area: 4
+            name: UI components
+            test-classes: com.example.workouttracker.feature.workouteditor.ExerciseEditorCardTest
+          - area: 5
+            name: Page switching
+            test-classes: com.example.workouttracker.ui.PageSwitchingTest
+    defaults:
+      run:
+        working-directory: WorkoutTracker
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS=="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run ${{ matrix.name }} tests
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          disable-animations: true
+          disk-size: 4096M
+          heap-size: 1024M
+          script: >-
+            cd WorkoutTracker &&
+            ./gradlew :app:connectedDebugAndroidTest
+            -Pandroid.testInstrumentationRunnerArguments.class=${{ matrix.test-classes }}
+            --no-daemon --stacktrace
