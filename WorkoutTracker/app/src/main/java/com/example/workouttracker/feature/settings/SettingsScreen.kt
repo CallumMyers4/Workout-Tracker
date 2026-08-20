@@ -243,7 +243,7 @@ private fun DriveSettingsCard(
 
                 ActionButton(
                     text = "Restore",
-                    onClick = onRequestBackup,
+                    onClick = onRequestRestore,
                     onCard = true,
                     modifier = Modifier.weight(1f),
                 )
