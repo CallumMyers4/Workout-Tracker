@@ -265,7 +265,6 @@ private fun WorkoutEditorDestination(
         isEditing = isEditing,
         onBack = onBack,
         onNameChanged = model::updateWorkoutName,
-        onDateChanged = model::updateWorkoutDate,
         onAddExercise = model::addExercise,
         onRemoveExercise = model::removeExercise,
         onExerciseSelected = model::selectExercise,

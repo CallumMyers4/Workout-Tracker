@@ -50,7 +50,6 @@ fun WorkoutEditorScreen(
     isEditing: Boolean,
     onBack: () -> Unit,
     onNameChanged: (String) -> Unit,
-    onDateChanged: (LocalDate) -> Unit,
     onAddExercise: () -> Unit,
     onRemoveExercise: (Int) -> Unit,
     onExerciseSelected: (Int, Long) -> Unit,
@@ -72,7 +71,6 @@ fun WorkoutEditorScreen(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    var showDatePicker by remember { mutableStateOf(false) }
     var showDiscardConfirmation by remember { mutableStateOf(false) }
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val invalid = uiState.validationResult as? ValidationResult.Invalid
@@ -176,47 +174,6 @@ fun WorkoutEditorScreen(
         }
     }
 
-    // Display the date picker using a limited range around the current year
-    if (showDatePicker) {
-        val today = LocalDate.now()
-        val firstDate = LocalDate.of(today.year - 20, 1, 1)
-        val lastDate = LocalDate.of(today.year + 5, 12, 31)
-        val initialMillis = uiState.draft.date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        val pickerState = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = initialMillis,
-            yearRange = firstDate.year..lastDate.year,
-            selectableDates = remember(firstDate, lastDate) {
-                object : SelectableDates {
-                    override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                        val date = Instant.ofEpochMilli(utcTimeMillis)
-                            .atZone(ZoneOffset.UTC)
-                            .toLocalDate()
-                        return date in firstDate..lastDate
-                    }
-
-                    override fun isSelectableYear(year: Int): Boolean = year in firstDate.year..lastDate.year
-                }
-            },
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let {
-                        onDateChanged(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())
-                    }
-                    showDatePicker = false
-                }) { Text("Use date") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    onDateChanged(today)
-                    showDatePicker = false
-                }) { Text("Today") }
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
-            },
-        ) { DatePicker(pickerState) }
-    }
     // Ask for confirmation before clearing or resetting a workout
     if (uiState.showClearConfirmation) {
         AlertDialog(
