@@ -14,7 +14,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -59,18 +58,12 @@ fun WorkoutTrackerApp(
     startDestination: AppRoute = AppRoute.WorkoutList,
 ) {
     val navController = rememberNavController()
-    // Keep the selected workout ID so Home can return to its details page
-    var activeWorkoutId by rememberSaveable { mutableStateOf<Long?>(null) }
-    // Keep an existing-workout edit as Home's active workspace while other tabs are used
-    var editingWorkoutId by rememberSaveable { mutableStateOf<Long?>(null) }
     var pendingTabRoute by remember { mutableStateOf<AppRoute?>(null) }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
             PrimaryNavigation(
                 navController = navController,
-                activeWorkoutId = activeWorkoutId,
-                editingWorkoutId = editingWorkoutId,
                 onEditExitRequested = { pendingTabRoute = it },
             )
         },
@@ -101,8 +94,6 @@ fun WorkoutTrackerApp(
                     onGroupingChanged = model::setGrouping,
                     onGroupToggled = model::toggleGroup,
                     onWorkoutSelected = {
-                        activeWorkoutId = it
-                        editingWorkoutId = null
                         navController.navigate(AppRoute.WorkoutDetail(it))
                     },
                     onLoadMore = model::loadMore,
@@ -125,8 +116,6 @@ fun WorkoutTrackerApp(
                 LaunchedEffect(model) {
                     model.events.collect { event ->
                         if (event == WorkoutDetailEvent.Deleted) {
-                            activeWorkoutId = null
-                            editingWorkoutId = null
                             navController.navigate(AppRoute.WorkoutList) {
                                 popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
                                 launchSingleTop = true
@@ -137,18 +126,14 @@ fun WorkoutTrackerApp(
                 WorkoutDetailScreen(
                     uiState = state,
                     onBack = {
-                        activeWorkoutId = null
-                        editingWorkoutId = null
                         navController.navigate(AppRoute.WorkoutList) {
                             popUpTo(navController.graph.findStartDestination().id) {
                                 inclusive = false
                             }
                             launchSingleTop = true
-                            restoreState = true
                         }
                     },
                     onEdit = {
-                        editingWorkoutId = it
                         navController.navigate(AppRoute.EditWorkout(it))
                     },
                     onRequestDelete = model::requestDelete,
@@ -165,16 +150,10 @@ fun WorkoutTrackerApp(
                     onSaved = {},
                 )
             }
-            // Draw an existing-workout editor inside Home's retained navigation state
+            // Draw an existing-workout editor within Home
             composable<AppRoute.EditWorkout> { backStackEntry ->
                 val route = backStackEntry.toRoute<AppRoute.EditWorkout>()
-                LaunchedEffect(route.workoutId) {
-                    activeWorkoutId = route.workoutId
-                    editingWorkoutId = route.workoutId
-                }
                 val returnToDetails: (Long) -> Unit = { workoutId ->
-                    activeWorkoutId = workoutId
-                    editingWorkoutId = null
                     navController.navigate(AppRoute.WorkoutDetail(workoutId)) {
                         popUpTo<AppRoute.EditWorkout> { inclusive = true }
                         launchSingleTop = true
@@ -190,15 +169,14 @@ fun WorkoutTrackerApp(
                     onConfirmTabExit = {
                         pendingTabRoute?.let { destination ->
                             pendingTabRoute = null
-                            activeWorkoutId = null
-                            editingWorkoutId = null
                             navController.navigate(destination) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     // Discard the retained detail/editor stack so Home reopens the list.
                                     saveState = false
                                 }
                                 launchSingleTop = true
-                                restoreState = true
+                                // Only Log may restore an unfinished new workout.
+                                restoreState = destination == AppRoute.WorkoutEditor
                             }
                         }
                     },
@@ -332,8 +310,6 @@ private enum class PrimaryTab { HOME, LOG, PROGRESS, SETTINGS }
 @Composable
 private fun PrimaryNavigation(
     navController: NavHostController,
-    activeWorkoutId: Long?,
-    editingWorkoutId: Long?,
     onEditExitRequested: (AppRoute) -> Unit,
 ) {
     // Hide navigation while typing to leave more room above the keyboard
@@ -346,9 +322,7 @@ private fun PrimaryNavigation(
         NavigationItem(
             tab = PrimaryTab.HOME,
             label = "Home",
-            route = editingWorkoutId?.let { AppRoute.EditWorkout(it) }
-                ?: activeWorkoutId?.let { AppRoute.WorkoutDetail(it) }
-                ?: AppRoute.WorkoutList,
+            route = AppRoute.WorkoutList,
             iconResource = R.drawable.icon_home,
         ),
         NavigationItem(
@@ -389,12 +363,13 @@ private fun PrimaryNavigation(
                         if (destination?.hasRoute(AppRoute.EditWorkout::class) == true) {
                             onEditExitRequested(item.route)
                         } else navController.navigate(item.route) {
-                            // Preserve each tab's page state and unfinished workout values
+                            // Only Log retains state so an unfinished workout is not lost.
                             popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
+                                saveState = destination?.hasRoute(AppRoute.WorkoutEditor::class) == true
                             }
                             launchSingleTop = true
-                            restoreState = true
+                            // Every other tab opens in its base state.
+                            restoreState = item.tab == PrimaryTab.LOG
                         }
                     }
                 },

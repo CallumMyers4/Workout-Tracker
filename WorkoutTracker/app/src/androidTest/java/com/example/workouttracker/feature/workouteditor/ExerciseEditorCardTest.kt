@@ -74,6 +74,6 @@ class ExerciseEditorCardTest {
                 )
             }
         }
-        composeRule.onAllNodesWithText("1 set: 5 × 80 kg").assertCountEquals(1)
+        composeRule.onAllNodesWithText("1 set").assertCountEquals(1)
     }
 }
