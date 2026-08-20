@@ -52,7 +52,18 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Run ${{ matrix.name }} tests
-        run: ./gradlew :app:testDebugUnitTest ${{ matrix.test-args }} --no-daemon --stacktrace
+        run: bash ./gradlew :app:testDebugUnitTest ${{ matrix.test-args }} --no-daemon --stacktrace
+
+      - name: Upload ${{ matrix.name }} test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-area-${{ matrix.area }}-results
+          path: |
+            WorkoutTracker/app/build/test-results/testDebugUnitTest/
+            WorkoutTracker/app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: warn
+          retention-days: 14
 
   instrumented-tests:
     name: Test area ${{ matrix.area }} - ${{ matrix.name }}
@@ -60,6 +71,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         include:
           - area: 3
@@ -90,7 +102,7 @@ jobs:
 
       - name: Enable KVM
         run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS=="static_node=kvm"' \
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
@@ -98,13 +110,27 @@ jobs:
       - name: Run ${{ matrix.name }} tests
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
-          api-level: 35
+          # API 29 is the action's documented stable Linux CI example and is
+          # safely above this app's API 26 minimum.
+          api-level: 29
           arch: x86_64
           disable-animations: true
           disk-size: 4096M
           heap-size: 1024M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: >-
             cd WorkoutTracker &&
-            ./gradlew :app:connectedDebugAndroidTest
+            bash ./gradlew :app:connectedDebugAndroidTest
             -Pandroid.testInstrumentationRunnerArguments.class=${{ matrix.test-classes }}
             --no-daemon --stacktrace
+
+      - name: Upload ${{ matrix.name }} test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-area-${{ matrix.area }}-results
+          path: |
+            WorkoutTracker/app/build/outputs/androidTest-results/connected/
+            WorkoutTracker/app/build/reports/androidTests/connected/
+          if-no-files-found: warn
+          retention-days: 14
