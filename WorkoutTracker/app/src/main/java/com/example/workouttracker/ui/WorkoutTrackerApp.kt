@@ -388,13 +388,6 @@ private fun PrimaryNavigation(
                     if (!selected) {
                         if (destination?.hasRoute(AppRoute.EditWorkout::class) == true) {
                             onEditExitRequested(item.route)
-                        } else if (item.tab == PrimaryTab.HOME) {
-                            // Home is the graph's start destination. Pop directly to it rather
-                            // than saving and immediately restoring the current tab on top of it.
-                            navController.popBackStack(
-                                navController.graph.findStartDestination().id,
-                                false,
-                            )
                         } else navController.navigate(item.route) {
                             // Preserve each tab's page state and unfinished workout values
                             popUpTo(navController.graph.findStartDestination().id) {
