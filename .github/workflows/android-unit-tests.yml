@@ -79,7 +79,7 @@ jobs:
             test-classes: com.example.workouttracker.data.RoomRepositoryTest,com.example.workouttracker.ExampleInstrumentedTest
           - area: 4
             name: UI components
-            test-classes: com.example.workouttracker.feature.workouteditor.ExerciseEditorCardTest
+            test-classes: com.example.workouttracker.feature.workouteditor.ExerciseEditorCardTest,com.example.workouttracker.feature.goals.GoalCardTest
           - area: 5
             name: Page switching
             test-classes: com.example.workouttracker.ui.PageSwitchingTest
