@@ -28,6 +28,7 @@ jobs:
             test-args: >-
               --tests com.example.workouttracker.domain.*
               --tests com.example.workouttracker.core.model.*
+              --tests com.example.workouttracker.feature.workouteditor.WorkoutDraftWeightConversionTest
               --tests com.example.workouttracker.ExampleUnitTest
           - area: 2
             name: Backup

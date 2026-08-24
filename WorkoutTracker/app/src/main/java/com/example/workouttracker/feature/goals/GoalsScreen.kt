@@ -22,6 +22,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.workouttracker.R
 import com.example.workouttracker.core.model.WeightsUnit
+import com.example.workouttracker.core.model.isValidWeightInput
 import com.example.workouttracker.ui.theme.EmptyStateTextStyle
 import com.example.workouttracker.ui.theme.PageTitle
 
@@ -74,7 +75,9 @@ fun GoalsScreen(
             text = {
                 OutlinedTextField(
                     value = editor.input,
-                    onValueChange = onGoalInputChanged,
+                    onValueChange = { value ->
+                        if (value.isValidWeightInput()) onGoalInputChanged(value)
+                    },
                     label = { Text("Goal weight (${weightsUnit.symbol})") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     isError = editor.errorMessage != null,

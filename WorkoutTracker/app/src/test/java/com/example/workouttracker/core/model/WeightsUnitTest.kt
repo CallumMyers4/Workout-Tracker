@@ -25,4 +25,18 @@ class WeightsUnitTest {
         assertEquals("220.46", WeightsUnit.IMPERIAL.formatKilograms(100.0))
         assertEquals(100.0, WeightsUnit.METRIC.toKilograms(100.0), 0.0)
     }
+
+    @Test
+    fun metricDisplayIsRoundedToTwoDecimalPlaces() {
+        assertEquals("12.35", WeightsUnit.METRIC.formatKilograms(12.345))
+    }
+
+    @Test
+    fun weightInputAllowsAtMostTwoDecimalPlaces() {
+        assertEquals(true, "12.34".isValidWeightInput())
+        assertEquals(true, ".5".isValidWeightInput())
+        assertEquals(true, "12.".isValidWeightInput())
+        assertEquals(false, "12.345".isValidWeightInput())
+        assertEquals(false, "weight".isValidWeightInput())
+    }
 }

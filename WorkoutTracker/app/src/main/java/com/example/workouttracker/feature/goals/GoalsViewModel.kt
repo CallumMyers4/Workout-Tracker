@@ -43,7 +43,11 @@ class GoalsViewModel(
         _uiState.update { state ->
             val editor = state.editor ?: return@update state
             val value = editor.input.toDoubleOrNull() ?: return@update state
-            state.copy(editor = editor.copy(input = unit.fromKilograms(previous.toKilograms(value)).toString()))
+            state.copy(
+                editor = editor.copy(
+                    input = unit.format(unit.fromKilograms(previous.toKilograms(value))),
+                ),
+            )
         }
     }
 
@@ -56,8 +60,7 @@ class GoalsViewModel(
                     exerciseId = exerciseId,
                     exerciseName = exercise.exercise.name,
                     input = exercise.exercise.goalKg
-                        ?.let(weightsUnit::fromKilograms)
-                        ?.toString()
+                        ?.let(weightsUnit::formatKilograms)
                         .orEmpty(),
                 ),
             )
@@ -87,7 +90,10 @@ class GoalsViewModel(
         viewModelScope.launch {
             // Keep goals stored as kilograms regardless of the selected display unit
             runCatching {
-                goalRepository.updateGoal(editor.exerciseId, goal?.let(weightsUnit::toKilograms))
+                goalRepository.updateGoal(
+                    editor.exerciseId,
+                    goal?.let { WeightsUnit.METRIC.format(weightsUnit.toKilograms(it)).toDouble() },
+                )
             }
                 .onSuccess { _uiState.update { it.copy(editor = null) } }
                 .onFailure { error ->

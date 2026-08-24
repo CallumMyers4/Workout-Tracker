@@ -40,6 +40,7 @@ import com.example.workouttracker.R
 import com.example.workouttracker.core.model.CatalogExercise
 import com.example.workouttracker.core.model.ExerciseSetDraft
 import com.example.workouttracker.core.model.WeightsUnit
+import com.example.workouttracker.core.model.isValidWeightInput
 import com.example.workouttracker.core.model.WorkoutExerciseDraft
 import com.example.workouttracker.ui.theme.GenericButton
 import com.example.workouttracker.ui.theme.GenericCard
@@ -314,7 +315,9 @@ fun SetEditorRow(
         )
         OutlinedTextField(
             value = set.weightKg,
-            onValueChange = { onChanged(set.reps, it) },
+            onValueChange = { value ->
+                if (value.isValidWeightInput()) onChanged(set.reps, value)
+            },
             label = { Text("Weight ${weightsUnit.symbol}") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(

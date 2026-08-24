@@ -40,14 +40,21 @@ enum class WeightsUnit {
     fun toKilograms(weight: Double): Double =
         if (this == METRIC) weight else weight / POUNDS_PER_KILOGRAM
 
-    // Format a stored kilogram value for display without changing the stored value
-    fun formatKilograms(kilograms: Double): String =
-        BigDecimal.valueOf(fromKilograms(kilograms))
+    // Round a value in the selected unit to the precision accepted by weight inputs
+    fun format(weight: Double): String =
+        BigDecimal.valueOf(weight)
             .setScale(2, RoundingMode.HALF_UP)
             .stripTrailingZeros()
             .toPlainString()
+
+    // Format a stored kilogram value for display without changing the stored value
+    fun formatKilograms(kilograms: Double): String =
+        format(fromKilograms(kilograms))
 
     private companion object {
         const val POUNDS_PER_KILOGRAM = 2.2046226218487757
     }
 }
+
+// Accept blank and partial decimal input while limiting weights to two decimal places
+fun String.isValidWeightInput(): Boolean = matches(Regex("^\\d*(?:\\.\\d{0,2})?$"))
