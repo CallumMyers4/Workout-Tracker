@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.workouttracker.R
+import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.ui.theme.EmptyStateTextStyle
 import com.example.workouttracker.ui.theme.PageTitle
 
@@ -28,6 +29,7 @@ import com.example.workouttracker.ui.theme.PageTitle
 @Composable
 fun GoalsScreen(
     uiState: GoalsUiState,
+    weightsUnit: WeightsUnit,
     onEditGoal: (Long) -> Unit,
     onGoalInputChanged: (String) -> Unit,
     onSaveGoal: () -> Unit,
@@ -55,6 +57,7 @@ fun GoalsScreen(
                 items(uiState.goals, key = { it.exercise.id }) { progress ->
                     GoalCard(
                         progress = progress,
+                        weightsUnit = weightsUnit,
                         onUpdateGoal = { onEditGoal(progress.exercise.id) },
                         modifier = Modifier.fillMaxWidth().padding(12.dp),
                     )
@@ -72,7 +75,7 @@ fun GoalsScreen(
                 OutlinedTextField(
                     value = editor.input,
                     onValueChange = onGoalInputChanged,
-                    label = { Text("Goal weight (kg)") },
+                    label = { Text("Goal weight (${weightsUnit.symbol})") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     isError = editor.errorMessage != null,
                     supportingText = editor.errorMessage?.let { message -> ({ Text(message) }) },

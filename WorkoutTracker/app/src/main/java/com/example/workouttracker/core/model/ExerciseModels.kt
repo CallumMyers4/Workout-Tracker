@@ -1,5 +1,8 @@
 package com.example.workouttracker.core.model
 
+import java.math.BigDecimal
+import java.math.RoundingMode
+
 // Metadata for each exercise created in the catalog on settings page
 data class CatalogExercise(
     val id: Long,
@@ -24,5 +27,27 @@ data class ExerciseProgress(
 // Amount of time to show workouts from on the home page
 enum class WeightsUnit {
     METRIC,
-    IMPERIAL
+    IMPERIAL;
+
+    // Return the short unit label shown beside weights
+    val symbol: String get() = if (this == METRIC) "kg" else "lb"
+
+    // Convert the kilogram value used by storage into the selected display unit
+    fun fromKilograms(kilograms: Double): Double =
+        if (this == METRIC) kilograms else kilograms * POUNDS_PER_KILOGRAM
+
+    // Convert user input back into kilograms before it reaches storage
+    fun toKilograms(weight: Double): Double =
+        if (this == METRIC) weight else weight / POUNDS_PER_KILOGRAM
+
+    // Format a stored kilogram value for display without changing the stored value
+    fun formatKilograms(kilograms: Double): String =
+        BigDecimal.valueOf(fromKilograms(kilograms))
+            .setScale(2, RoundingMode.HALF_UP)
+            .stripTrailingZeros()
+            .toPlainString()
+
+    private companion object {
+        const val POUNDS_PER_KILOGRAM = 2.2046226218487757
+    }
 }

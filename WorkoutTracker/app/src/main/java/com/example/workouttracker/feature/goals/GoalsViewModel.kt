@@ -2,6 +2,7 @@ package com.example.workouttracker.feature.goals
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.domain.repository.GoalRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,6 +15,7 @@ import kotlinx.coroutines.launch
 class GoalsViewModel(
     private val goalRepository: GoalRepository,
 ) : ViewModel() {
+    private var weightsUnit = WeightsUnit.METRIC
     private val _uiState = MutableStateFlow(GoalsUiState())
     val uiState: StateFlow<GoalsUiState> = _uiState.asStateFlow()
 
@@ -33,6 +35,18 @@ class GoalsViewModel(
         }
     }
 
+    // Convert an open goal editor when the selected display unit changes
+    fun setWeightsUnit(unit: WeightsUnit) {
+        val previous = weightsUnit
+        if (unit == previous) return
+        weightsUnit = unit
+        _uiState.update { state ->
+            val editor = state.editor ?: return@update state
+            val value = editor.input.toDoubleOrNull() ?: return@update state
+            state.copy(editor = editor.copy(input = unit.fromKilograms(previous.toKilograms(value)).toString()))
+        }
+    }
+
     // Create the dialog for updating each goal
     fun openGoalEditor(exerciseId: Long) {
         val exercise = _uiState.value.goals.firstOrNull { it.exercise.id == exerciseId } ?: return
@@ -41,7 +55,10 @@ class GoalsViewModel(
                 editor = GoalEditorState(
                     exerciseId = exerciseId,
                     exerciseName = exercise.exercise.name,
-                    input = exercise.exercise.goalKg?.toString().orEmpty(),
+                    input = exercise.exercise.goalKg
+                        ?.let(weightsUnit::fromKilograms)
+                        ?.toString()
+                        .orEmpty(),
                 ),
             )
         }
@@ -68,7 +85,10 @@ class GoalsViewModel(
             return
         }
         viewModelScope.launch {
-            runCatching { goalRepository.updateGoal(editor.exerciseId, goal) }
+            // Keep goals stored as kilograms regardless of the selected display unit
+            runCatching {
+                goalRepository.updateGoal(editor.exerciseId, goal?.let(weightsUnit::toKilograms))
+            }
                 .onSuccess { _uiState.update { it.copy(editor = null) } }
                 .onFailure { error ->
                     _uiState.update {

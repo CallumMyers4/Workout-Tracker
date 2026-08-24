@@ -27,6 +27,7 @@ jobs:
             name: Domain logic
             test-args: >-
               --tests com.example.workouttracker.domain.*
+              --tests com.example.workouttracker.core.model.*
               --tests com.example.workouttracker.ExampleUnitTest
           - area: 2
             name: Backup
@@ -76,10 +77,14 @@ jobs:
         include:
           - area: 3
             name: Repositories and database
-            test-classes: com.example.workouttracker.data.RoomRepositoryTest,com.example.workouttracker.ExampleInstrumentedTest
+            test-classes: |-
+              com.example.workouttracker.data.RoomRepositoryTest
+              com.example.workouttracker.ExampleInstrumentedTest
           - area: 4
             name: UI components
-            test-classes: com.example.workouttracker.feature.workouteditor.ExerciseEditorCardTest,com.example.workouttracker.feature.goals.GoalCardTest
+            test-classes: |-
+              com.example.workouttracker.feature.workouteditor.ExerciseEditorCardTest
+              com.example.workouttracker.feature.goals.GoalCardTest
           - area: 5
             name: Page switching
             test-classes: com.example.workouttracker.ui.PageSwitchingTest
@@ -109,6 +114,8 @@ jobs:
 
       - name: Run ${{ matrix.name }} tests
         uses: reactivecircus/android-emulator-runner@v2.38.0
+        env:
+          TEST_CLASSES: ${{ matrix.test-classes }}
         with:
           # API 29 is the action's documented stable Linux CI example and is
           # safely above this app's API 26 minimum.
@@ -121,7 +128,7 @@ jobs:
           script: >-
             cd WorkoutTracker &&
             bash ./gradlew :app:connectedDebugAndroidTest
-            -Pandroid.testInstrumentationRunnerArguments.class=${{ matrix.test-classes }}
+            -Pandroid.testInstrumentationRunnerArguments.class=$(printf '%s' "$TEST_CLASSES" | tr '\n' ',')
             --no-daemon --stacktrace
 
       - name: Upload ${{ matrix.name }} test results

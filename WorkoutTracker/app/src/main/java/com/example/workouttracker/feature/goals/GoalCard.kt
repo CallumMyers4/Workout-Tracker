@@ -15,15 +15,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.workouttracker.R
 import com.example.workouttracker.core.model.ExerciseProgress
+import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.ui.theme.ActionButton
 import com.example.workouttracker.ui.theme.GenericCard
-import java.math.BigDecimal
 import java.text.NumberFormat
 
 @Composable
 // Create a new card for a goal
 fun GoalCard(
     progress: ExerciseProgress,
+    weightsUnit: WeightsUnit = WeightsUnit.METRIC,
     onUpdateGoal: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -37,7 +38,7 @@ fun GoalCard(
         // Create a row for goal
         DataRow(
             name = "Goal: ",
-            data = progress.exercise.goalKg?.asWeight() ?: "Not set"
+            data = progress.exercise.goalKg?.asWeight(weightsUnit) ?: "Not set"
         )
         HorizontalDivider(
             thickness = 2.dp
@@ -45,7 +46,7 @@ fun GoalCard(
         // Create a row for best set
         DataRow(
             name = "Best: ",
-            data = progress.bestSet?.let { "${it.reps}x${it.weightKg.asWeight()}" }
+            data = progress.bestSet?.let { "${it.reps}x${it.weightKg.asWeight(weightsUnit)}" }
                     ?: "No sets found"
         )
         HorizontalDivider(
@@ -108,8 +109,8 @@ fun DataRow(
 }
 
 // Return weight as formatted string
-private fun Double.asWeight(): String =
-    BigDecimal.valueOf(this).stripTrailingZeros().toPlainString() + "kg"
+private fun Double.asWeight(unit: WeightsUnit): String =
+    unit.formatKilograms(this) + unit.symbol
 
 // Return final progress percent formatted
 private val PERCENT_FORMAT = NumberFormat.getNumberInstance().apply {
