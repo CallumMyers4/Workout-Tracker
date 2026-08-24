@@ -20,6 +20,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.workouttracker.R
+import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.ui.theme.EmptyStateTextStyle
 import com.example.workouttracker.ui.theme.PageTitle
 import java.time.format.DateTimeFormatter
@@ -28,6 +29,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun WorkoutDetailScreen(
     uiState: WorkoutDetailUiState,
+    weightsUnit: WeightsUnit,
     onBack: () -> Unit,
     onEdit: (Long) -> Unit,
     onRequestDelete: () -> Unit,
@@ -86,7 +88,7 @@ fun WorkoutDetailScreen(
                         }
                     }
                     items(workout.exercises.sortedBy { it.position }, key = { it.id }) { exercise ->
-                        ExerciseSummaryCard(exercise, Modifier
+                        ExerciseSummaryCard(exercise, weightsUnit, Modifier
                             .fillMaxWidth()
                             .padding(12.dp))
                     }

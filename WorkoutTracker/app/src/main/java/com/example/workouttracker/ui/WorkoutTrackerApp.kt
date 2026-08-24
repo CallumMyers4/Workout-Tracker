@@ -33,6 +33,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.workouttracker.AppContainer
 import com.example.workouttracker.R
+import com.example.workouttracker.core.model.AppPreferences
+import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.domain.service.WorkoutValidator
 import com.example.workouttracker.feature.goals.GoalsScreen
 import com.example.workouttracker.feature.goals.GoalsViewModel
@@ -58,6 +60,10 @@ fun WorkoutTrackerApp(
     startDestination: AppRoute = AppRoute.WorkoutList,
 ) {
     val navController = rememberNavController()
+    // Observe the selected unit once and share it with every weight-based screen
+    val preferences by container.preferencesRepository.preferences.collectAsStateWithLifecycle(
+        initialValue = AppPreferences(),
+    )
     var pendingTabRoute by remember { mutableStateOf<AppRoute?>(null) }
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -125,6 +131,7 @@ fun WorkoutTrackerApp(
                 }
                 WorkoutDetailScreen(
                     uiState = state,
+                    weightsUnit = preferences.weightsUnit,
                     onBack = {
                         navController.navigate(AppRoute.WorkoutList) {
                             popUpTo(navController.graph.findStartDestination().id) {
@@ -145,6 +152,7 @@ fun WorkoutTrackerApp(
             composable<AppRoute.WorkoutEditor> {
                 WorkoutEditorDestination(
                     container = container,
+                    weightsUnit = preferences.weightsUnit,
                     isEditing = false,
                     onBack = { navController.popBackStack() },
                     onSaved = {},
@@ -161,6 +169,7 @@ fun WorkoutTrackerApp(
                 }
                 WorkoutEditorDestination(
                     container = container,
+                    weightsUnit = preferences.weightsUnit,
                     isEditing = true,
                     onBack = { returnToDetails(route.workoutId) },
                     onSaved = returnToDetails,
@@ -190,8 +199,13 @@ fun WorkoutTrackerApp(
                     },
                 )
                 val state by model.uiState.collectAsStateWithLifecycle()
+                // Keep an open goal editor in sync when the unit setting changes
+                LaunchedEffect(preferences.weightsUnit) {
+                    model.setWeightsUnit(preferences.weightsUnit)
+                }
                 GoalsScreen(
                     uiState = state,
+                    weightsUnit = preferences.weightsUnit,
                     onEditGoal = model::openGoalEditor,
                     onGoalInputChanged = model::updateGoalInput,
                     onSaveGoal = model::saveGoal,
@@ -215,6 +229,7 @@ fun WorkoutTrackerApp(
                 SettingsScreen(
                     uiState = state,
                     onThemeChanged = model::setDarkTheme,
+                    onWeightsUnitChanged = model::setWeightsUnit,
                     onManageExercises = model::showExerciseLibrary,
                     onSignInOrOut = model::signInOrOut,
                     onRequestBackup = model::requestBackup,
@@ -242,6 +257,7 @@ fun WorkoutTrackerApp(
 @Composable
 private fun WorkoutEditorDestination(
     container: AppContainer,
+    weightsUnit: WeightsUnit,
     isEditing: Boolean,
     onBack: () -> Unit,
     onSaved: (Long) -> Unit,
@@ -262,6 +278,10 @@ private fun WorkoutEditorDestination(
         },
     )
     val state by model.uiState.collectAsStateWithLifecycle()
+    // Convert an active workout draft when the unit setting changes
+    LaunchedEffect(weightsUnit) {
+        model.setWeightsUnit(weightsUnit)
+    }
     LaunchedEffect(model) {
         model.events.collect { event ->
             if (event is WorkoutEditorEvent.Saved) onSaved(event.workoutId)
@@ -269,6 +289,7 @@ private fun WorkoutEditorDestination(
     }
     WorkoutEditorScreen(
         uiState = state,
+        weightsUnit = weightsUnit,
         isEditing = isEditing,
         onBack = onBack,
         tabExitRequested = tabExitRequested,

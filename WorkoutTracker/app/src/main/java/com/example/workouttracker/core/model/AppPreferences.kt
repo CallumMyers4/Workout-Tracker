@@ -7,4 +7,5 @@ data class AppPreferences(
     val filter: WorkoutFilter = WorkoutFilter.ALL_TIME, // Date filter for home
     val sort: WorkoutSort = WorkoutSort.NEWEST, // Ordering for home
     val grouping: WorkoutGrouping = WorkoutGrouping.NONE,   // How to group home page
+    val weightsUnit: WeightsUnit = WeightsUnit.METRIC,  // kilos (metric) or lbs (imperial)
 )

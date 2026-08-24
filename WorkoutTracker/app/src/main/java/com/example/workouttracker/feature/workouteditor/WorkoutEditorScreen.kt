@@ -33,6 +33,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.example.workouttracker.R
 import com.example.workouttracker.core.result.ValidationResult
+import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.ui.theme.ActionButton
 import com.example.workouttracker.ui.theme.DestructiveButton
 import com.example.workouttracker.ui.theme.GenericButton
@@ -47,6 +48,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun WorkoutEditorScreen(
     uiState: WorkoutEditorUiState,
+    weightsUnit: WeightsUnit,
     isEditing: Boolean,
     onBack: () -> Unit,
     tabExitRequested: Boolean = false,
@@ -135,6 +137,7 @@ fun WorkoutEditorScreen(
                 item(key = exercise.editorKey) {
                     ExerciseEditorCard(
                         exercise = exercise,
+                        weightsUnit = weightsUnit,
                         exerciseIndex = exerciseIndex,
                         catalog = uiState.exerciseCatalog,
                         onSelected = { onExerciseSelected(exerciseIndex, it) },

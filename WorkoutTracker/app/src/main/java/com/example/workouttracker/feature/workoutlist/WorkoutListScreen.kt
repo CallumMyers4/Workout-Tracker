@@ -1,28 +1,20 @@
 package com.example.workouttracker.feature.workoutlist
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import com.example.workouttracker.R
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
@@ -31,7 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.example.workouttracker.core.model.WorkoutFilter
 import com.example.workouttracker.core.model.WorkoutGrouping
 import com.example.workouttracker.core.model.WorkoutSort
-import com.example.workouttracker.ui.theme.GenericButton
+import com.example.workouttracker.ui.theme.GenericDropdown
 import com.example.workouttracker.ui.theme.EmptyStateTextStyle
 import com.example.workouttracker.ui.theme.PageTitle
 
@@ -70,7 +62,7 @@ fun WorkoutListScreen(
                 .padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ChoiceDropdown(
+            GenericDropdown(
                 title = "Range",
                 values = WorkoutFilter.entries,
                 selected = uiState.filter,
@@ -78,7 +70,7 @@ fun WorkoutListScreen(
                 onSelected = onFilterChanged,
                 modifier = Modifier.weight(1f),
             )
-            ChoiceDropdown(
+            GenericDropdown(
                 title = "Sort",
                 values = WorkoutSort.entries,
                 selected = uiState.sort,
@@ -86,7 +78,7 @@ fun WorkoutListScreen(
                 onSelected = onSortChanged,
                 modifier = Modifier.weight(1f),
             )
-            ChoiceDropdown(
+            GenericDropdown(
                 title = "Group",
                 values = WorkoutGrouping.entries,
                 selected = uiState.grouping,
@@ -154,47 +146,6 @@ fun WorkoutListScreen(
                         CircularProgressIndicator(Modifier.padding(16.dp))
                     }
                 }
-            }
-        }
-    }
-}
-
-// Display a compact dropdown for one set of workout browsing choices
-@Composable
-private fun <T> ChoiceDropdown(
-    title: String,
-    values: List<T>,
-    selected: T,
-    label: (T) -> String,
-    onSelected: (T) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Box(modifier) {
-        GenericButton(
-            text = "$title: \n${label(selected)}",
-            onClick = { expanded = !expanded },
-            icon = painterResource(
-                if (expanded) R.drawable.icon_collapse
-                else R.drawable.icon_expand
-            ),
-            onCard = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-        )
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            values.forEach { value ->
-                DropdownMenuItem(
-                    text = { Text(label(value)) },
-                    onClick = {
-                        onSelected(value)
-                        expanded = false
-                    },
-                )
             }
         }
     }

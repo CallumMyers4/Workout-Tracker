@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import com.example.workouttracker.R
 import com.example.workouttracker.core.model.CatalogExercise
 import com.example.workouttracker.core.model.ExerciseSetDraft
+import com.example.workouttracker.core.model.WeightsUnit
+import com.example.workouttracker.core.model.isValidWeightInput
 import com.example.workouttracker.core.model.WorkoutExerciseDraft
 import com.example.workouttracker.ui.theme.GenericButton
 import com.example.workouttracker.ui.theme.GenericCard
@@ -47,6 +49,7 @@ import com.example.workouttracker.ui.theme.GenericCard
 @Composable
 fun ExerciseEditorCard(
     exercise: WorkoutExerciseDraft,
+    weightsUnit: WeightsUnit = WeightsUnit.METRIC,
     exerciseIndex: Int,
     catalog: List<CatalogExercise>,
     onSelected: (Long) -> Unit,
@@ -139,6 +142,7 @@ fun ExerciseEditorCard(
             exercise.sets.forEachIndexed { setIndex, set ->
                 SetEditorRow(
                     set = set,
+                    weightsUnit = weightsUnit,
                     setIndex = setIndex,
                     onChanged = { reps, weight -> onSetChanged(setIndex, reps, weight) },
                     onRemove = {
@@ -278,6 +282,7 @@ fun ExerciseEditorCard(
 @Composable
 fun SetEditorRow(
     set: ExerciseSetDraft,
+    weightsUnit: WeightsUnit,
     setIndex: Int,
     onChanged: (reps: String, weightKg: String) -> Unit,
     onRemove: () -> Unit,
@@ -310,8 +315,10 @@ fun SetEditorRow(
         )
         OutlinedTextField(
             value = set.weightKg,
-            onValueChange = { onChanged(set.reps, it) },
-            label = { Text("Weight kg") },
+            onValueChange = { value ->
+                if (value.isValidWeightInput()) onChanged(set.reps, value)
+            },
+            label = { Text("Weight ${weightsUnit.symbol}") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Decimal,

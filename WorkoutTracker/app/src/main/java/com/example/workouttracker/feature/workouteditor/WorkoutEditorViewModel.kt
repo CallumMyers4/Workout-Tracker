@@ -7,6 +7,7 @@ import com.example.workouttracker.core.model.ExerciseSetDraft
 import com.example.workouttracker.core.model.Workout
 import com.example.workouttracker.core.model.WorkoutDraft
 import com.example.workouttracker.core.model.WorkoutExerciseDraft
+import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.core.result.ValidationResult
 import com.example.workouttracker.domain.repository.ExerciseRepository
 import com.example.workouttracker.domain.repository.WorkoutRepository
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.math.BigDecimal
 
 // Manage the editable workout draft and all actions from the workout editor page
 class WorkoutEditorViewModel(
@@ -37,6 +39,12 @@ class WorkoutEditorViewModel(
     private val _events = MutableSharedFlow<WorkoutEditorEvent>(extraBufferCapacity = 1)
     val events: SharedFlow<WorkoutEditorEvent> = _events.asSharedFlow()
     private var originalDraft = savedStateHandle.get<WorkoutDraft>(ORIGINAL_DRAFT_KEY)
+    // Keep the exact persisted values separate from converted editor text
+    private var originalKilogramDraft = savedStateHandle.get<WorkoutDraft>(ORIGINAL_KILOGRAM_DRAFT_KEY)
+    // Restore the unit used by saved draft text so it can be converted safely
+    private var weightsUnit = savedStateHandle.get<String>(WEIGHTS_UNIT_KEY)
+        ?.let { runCatching { WeightsUnit.valueOf(it) }.getOrNull() }
+        ?: WeightsUnit.METRIC
 
     // Restore an unfinished draft or load the workout selected for editing
     init {
@@ -47,13 +55,20 @@ class WorkoutEditorViewModel(
         if (restoredDraft != null) {
             _uiState.update { it.copy(draft = restoredDraft, isDirty = true) }
         }
-        if (workoutId != null && (restoredDraft == null || originalDraft == null)) {
+        if (workoutId != null &&
+            (restoredDraft == null || originalDraft == null || originalKilogramDraft == null)
+        ) {
             viewModelScope.launch {
                 runCatching { workoutRepository.observeWorkout(workoutId).filterNotNull().first() }
                     .onSuccess { workout ->
-                        val loadedDraft = workout.toDraft()
-                        originalDraft = loadedDraft
-                        savedStateHandle[ORIGINAL_DRAFT_KEY] = loadedDraft
+                        val kilogramDraft = workout.toKilogramDraft()
+                        val loadedDraft = kilogramDraft.convertWeights(WeightsUnit.METRIC, weightsUnit)
+                        originalKilogramDraft = kilogramDraft
+                        savedStateHandle[ORIGINAL_KILOGRAM_DRAFT_KEY] = kilogramDraft
+                        if (originalDraft == null) {
+                            originalDraft = loadedDraft
+                            savedStateHandle[ORIGINAL_DRAFT_KEY] = loadedDraft
+                        }
                         if (restoredDraft == null) {
                             _uiState.update { it.copy(draft = loadedDraft, isDirty = false) }
                         }
@@ -80,6 +95,21 @@ class WorkoutEditorViewModel(
                         )
                     }
                 }
+        }
+    }
+
+    // Convert the editable text when the display unit changes; persisted values remain kilograms
+    fun setWeightsUnit(unit: WeightsUnit) {
+        if (unit == weightsUnit) return
+        val previous = weightsUnit
+        weightsUnit = unit
+        savedStateHandle[WEIGHTS_UNIT_KEY] = unit.name
+        originalDraft = originalDraft?.convertWeights(previous, unit)
+        originalDraft?.let { savedStateHandle[ORIGINAL_DRAFT_KEY] = it }
+        _uiState.update { state ->
+            val converted = state.draft.convertWeights(previous, unit)
+            if (state.isDirty) savedStateHandle[DRAFT_KEY] = converted
+            state.copy(draft = converted)
         }
     }
 
@@ -316,7 +346,16 @@ class WorkoutEditorViewModel(
         }
         _uiState.update { it.copy(isSaving = true, validationResult = ValidationResult.Valid, errorMessage = null) }
         viewModelScope.launch {
-            runCatching { workoutRepository.saveWorkout(draft) }
+            // Always pass kilogram values to the repository and Room database
+            runCatching {
+                workoutRepository.saveWorkout(
+                    draft.toKilogramsPreservingUnchanged(
+                        weightsUnit,
+                        originalDraft,
+                        originalKilogramDraft,
+                    ),
+                )
+            }
                 .onSuccess { workoutId ->
                     savedStateHandle.remove<WorkoutDraft>(DRAFT_KEY)
                     if (draft.workoutId == null) {
@@ -370,8 +409,8 @@ class WorkoutEditorViewModel(
             exercise.catalogExerciseId != null || exercise.sets.any { it.reps.isNotBlank() || it.weightKg.isNotBlank() }
         }
 
-    // Convert a saved workout into editable text values
-    private fun Workout.toDraft() = WorkoutDraft(
+    // Copy a saved workout into a draft without converting its canonical kilogram values
+    private fun Workout.toKilogramDraft() = WorkoutDraft(
         workoutId = id,
         name = name,
         date = date,
@@ -380,11 +419,30 @@ class WorkoutEditorViewModel(
                 catalogExerciseId = exercise.catalogExerciseId,
                 name = exercise.name,
                 sets = exercise.sets.map { set ->
-                    ExerciseSetDraft(reps = set.reps.toString(), weightKg = set.weightKg.toString())
+                    ExerciseSetDraft(
+                        reps = set.reps.toString(),
+                        weightKg = set.weightKg.asInputText(),
+                    )
                 },
             )
         }.ifEmpty { listOf(WorkoutExerciseDraft()) },
     )
+
+    // Convert every valid weight while leaving unfinished or invalid input unchanged
+    private fun WorkoutDraft.convertWeights(from: WeightsUnit, to: WeightsUnit): WorkoutDraft =
+        copy(exercises = exercises.map { exercise ->
+            exercise.copy(sets = exercise.sets.map { set ->
+                val value = set.weightKg.toDoubleOrNull()
+                set.copy(
+                    weightKg = value?.let { to.format(to.fromKilograms(from.toKilograms(it))) }
+                        ?: set.weightKg,
+                )
+            })
+        })
+
+    // Avoid adding trailing zeroes to converted editor values
+    private fun Double.asInputText(): String =
+        BigDecimal.valueOf(this).stripTrailingZeros().toPlainString()
 
     // Give a user-friendly generic error
     private fun Throwable.userMessage(): String = message ?: "Something went wrong. Please try again."
@@ -392,6 +450,42 @@ class WorkoutEditorViewModel(
     private companion object {
         const val DRAFT_KEY = "workout_editor_draft"
         const val ORIGINAL_DRAFT_KEY = "workout_editor_original_draft"
+        const val ORIGINAL_KILOGRAM_DRAFT_KEY = "workout_editor_original_kilogram_draft"
         const val NOTE_EDITOR_KEY = "workout_note_editor"
+        const val WEIGHTS_UNIT_KEY = "workout_editor_weights_unit"
     }
+}
+
+// Create a kilogram draft while retaining exact database values for untouched weight inputs
+internal fun WorkoutDraft.toKilogramsPreservingUnchanged(
+    from: WeightsUnit,
+    originalDisplay: WorkoutDraft?,
+    originalKilograms: WorkoutDraft?,
+): WorkoutDraft {
+    val originalDisplaySets = originalDisplay
+        ?.exercises
+        .orEmpty()
+        .flatMap { it.sets }
+        .associateBy { it.editorKey }
+    val originalKilogramSets = originalKilograms
+        ?.exercises
+        .orEmpty()
+        .flatMap { it.sets }
+        .associateBy { it.editorKey }
+    return copy(exercises = exercises.map { exercise ->
+        exercise.copy(sets = exercise.sets.map { set ->
+            val originalText = originalDisplaySets[set.editorKey]?.weightKg
+            val exactKilograms = originalKilogramSets[set.editorKey]?.weightKg
+            if (exactKilograms != null && set.weightKg == originalText) {
+                set.copy(weightKg = exactKilograms)
+            } else {
+                val value = set.weightKg.toDoubleOrNull()
+                set.copy(
+                    weightKg = value?.let {
+                        WeightsUnit.METRIC.format(from.toKilograms(it))
+                    } ?: set.weightKg,
+                )
+            }
+        })
+    })
 }
