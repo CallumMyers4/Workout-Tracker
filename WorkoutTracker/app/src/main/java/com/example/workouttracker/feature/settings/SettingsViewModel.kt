@@ -3,6 +3,7 @@ package com.example.workouttracker.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.workouttracker.core.model.WorkoutFilter
+import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.core.model.WorkoutGrouping
 import com.example.workouttracker.core.model.WorkoutSort
 import com.example.workouttracker.domain.repository.BackupRepository
@@ -46,6 +47,11 @@ class SettingsViewModel(
     // Update whether the dark theme is enabled
     fun setDarkTheme(enabled: Boolean) {
         updatePreferences { it.copy(darkTheme = enabled) }
+    }
+
+    // Update the unit used to display weights
+    fun setWeightsUnit(weightsUnit: WeightsUnit) {
+        updatePreferences { it.copy(weightsUnit = weightsUnit) }
     }
 
     // Update the default workout date filter

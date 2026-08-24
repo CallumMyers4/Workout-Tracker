@@ -215,6 +215,7 @@ fun WorkoutTrackerApp(
                 SettingsScreen(
                     uiState = state,
                     onThemeChanged = model::setDarkTheme,
+                    onWeightsUnitChanged = model::setWeightsUnit,
                     onManageExercises = model::showExerciseLibrary,
                     onSignInOrOut = model::signInOrOut,
                     onRequestBackup = model::requestBackup,

@@ -36,10 +36,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.workouttracker.R
+import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.domain.repository.BackupConnectionState
 import com.example.workouttracker.ui.theme.ActionButton
 import com.example.workouttracker.ui.theme.DestructiveButton
 import com.example.workouttracker.ui.theme.GenericCard
+import com.example.workouttracker.ui.theme.GenericDropdown
 import com.example.workouttracker.ui.theme.PageTitle
 
 // Function to display the settings screen
@@ -47,6 +49,7 @@ import com.example.workouttracker.ui.theme.PageTitle
 fun SettingsScreen(
     uiState: SettingsUiState,
     onThemeChanged: (Boolean) -> Unit,
+    onWeightsUnitChanged: (WeightsUnit) -> Unit,
     onManageExercises: () -> Unit,
     onSignInOrOut: () -> Unit,
     onRequestBackup: () -> Unit,
@@ -85,10 +88,40 @@ fun SettingsScreen(
                     title = "Appearance",
                     supportingText = "Choose how the app looks on this device.",
                 ) {
-                    ThemeSettingRow(
-                        checked = uiState.preferences.darkTheme,
-                        onCheckedChange = onThemeChanged,
-                    )
+                    Column {
+                        ThemeSettingRow(
+                            checked = uiState.preferences.darkTheme,
+                            onCheckedChange = onThemeChanged,
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics { role = Role.Switch }
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Text("Units", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    text = "Switch between metric and imperial units",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        GenericDropdown(
+                            title = "Units",
+                            values = WeightsUnit.entries,
+                            selected = uiState.preferences.weightsUnit,
+                            label = { if (it == WeightsUnit.METRIC) "Metric (kg)" else "Imperial (lb)" },
+                            onSelected = onWeightsUnitChanged,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
 
                 SettingsSectionCard(
