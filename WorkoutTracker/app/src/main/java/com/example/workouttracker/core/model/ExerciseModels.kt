@@ -20,3 +20,9 @@ data class ExerciseProgress(
     val bestSet: BestSet?,
     val percentage: Double?,
 )
+
+// Amount of time to show workouts from on the home page
+enum class WeightsUnit {
+    METRIC,
+    IMPERIAL
+}

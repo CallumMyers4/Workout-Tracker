@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.workouttracker.core.model.AppPreferences
+import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.core.model.WorkoutFilter
 import com.example.workouttracker.core.model.WorkoutGrouping
 import com.example.workouttracker.core.model.WorkoutSort
@@ -54,6 +55,7 @@ class DataStorePreferencesRepository(context: Context) : PreferencesRepository {
         filter = values[FILTER].toEnumOrDefault(WorkoutFilter.ALL_TIME),
         sort = values[SORT].toEnumOrDefault(WorkoutSort.NEWEST),
         grouping = values[GROUPING].toEnumOrDefault(WorkoutGrouping.NONE),
+        weightsUnit = values[WEIGHTS_UNIT].toEnumOrDefault(WeightsUnit.METRIC)
     )
 
     // Write all preference model values into DataStore
@@ -64,6 +66,7 @@ class DataStorePreferencesRepository(context: Context) : PreferencesRepository {
         values[FILTER] = preferences.filter.name
         values[SORT] = preferences.sort.name
         values[GROUPING] = preferences.grouping.name
+        values[WEIGHTS_UNIT] = preferences.weightsUnit.name
     }
 
     // Return a stored enum value or its default when it is missing or no longer exists
@@ -76,5 +79,6 @@ class DataStorePreferencesRepository(context: Context) : PreferencesRepository {
         val FILTER = stringPreferencesKey("workout_filter")
         val SORT = stringPreferencesKey("workout_sort")
         val GROUPING = stringPreferencesKey("workout_grouping")
+        val WEIGHTS_UNIT = stringPreferencesKey("weights_unit");
     }
 }
