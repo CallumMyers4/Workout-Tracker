@@ -7,9 +7,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -23,11 +26,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -67,6 +72,16 @@ fun ExerciseEditorCard(
     var searchText by remember { mutableStateOf("") }
     var confirmExerciseRemoval by remember { mutableStateOf(false) }
     var confirmSetRemoval by remember { mutableStateOf<Int?>(null) }
+    var scrollToAddedSet by remember(exercise.editorKey) { mutableStateOf(false) }
+    val newestSetRequester = remember(exercise.editorKey) { BringIntoViewRequester() }
+
+    LaunchedEffect(exercise.sets.size) {
+        val setCount = exercise.sets.size
+        if (scrollToAddedSet && setCount > 0) {
+            newestSetRequester.bringIntoView()
+            scrollToAddedSet = false
+        }
+    }
 
     GenericCard(modifier = modifier) {
         Row(
@@ -120,7 +135,13 @@ fun ExerciseEditorCard(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            TextButton(onClick = onAddSet, modifier = Modifier.weight(1f)) {
+            TextButton(
+                onClick = {
+                    scrollToAddedSet = true
+                    onAddSet()
+                },
+                modifier = Modifier.weight(1f),
+            ) {
                 Text(
                     "Add set",
                     style = MaterialTheme.typography.displaySmall
@@ -153,6 +174,11 @@ fun ExerciseEditorCard(
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
+                    bringIntoViewRequester = if (setIndex == exercise.sets.lastIndex) {
+                        newestSetRequester
+                    } else {
+                        null
+                    },
                 )
             }
         } else {
@@ -287,15 +313,24 @@ fun SetEditorRow(
     onChanged: (reps: String, weightKg: String) -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
+    bringIntoViewRequester: BringIntoViewRequester? = null,
 ) {
     val focusManager = LocalFocusManager.current
+    val density = LocalDensity.current
+    val imeInsets = WindowInsets.ime
+    val coroutineScope = rememberCoroutineScope()
+    val repsRequester = remember { BringIntoViewRequester() }
+    val weightRequester = remember { BringIntoViewRequester() }
+    val rowModifier = if (bringIntoViewRequester == null) modifier else {
+        modifier.bringIntoViewRequester(bringIntoViewRequester)
+    }
     // Check the entered text without changing it while the user is typing
     val repsInvalid = set.reps.isNotEmpty() && (set.reps.toIntOrNull()?.let { it <= 0 } != false)
     val weight = set.weightKg.toDoubleOrNull()
     val weightInvalid =
         set.weightKg.isNotEmpty() && (weight == null || !weight.isFinite() || weight < 0.0)
     Row(
-        modifier = modifier,
+        modifier = rowModifier,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -308,10 +343,18 @@ fun SetEditorRow(
                 keyboardType = KeyboardType.Number,
                 imeAction = ImeAction.Done,
             ),
-            keyboardActions = dismissKeyboardActions(focusManager),
+            keyboardActions = bringIntoViewOnDone(
+                focusManager,
+                repsRequester,
+                coroutineScope,
+                density,
+                imeInsets,
+            ),
             isError = repsInvalid,
             supportingText = if (repsInvalid) ({ Text("Positive whole number") }) else null,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .bringIntoViewRequester(repsRequester),
         )
         OutlinedTextField(
             value = set.weightKg,
@@ -324,10 +367,18 @@ fun SetEditorRow(
                 keyboardType = KeyboardType.Decimal,
                 imeAction = ImeAction.Done,
             ),
-            keyboardActions = dismissKeyboardActions(focusManager),
+            keyboardActions = bringIntoViewOnDone(
+                focusManager,
+                weightRequester,
+                coroutineScope,
+                density,
+                imeInsets,
+            ),
             isError = weightInvalid,
             supportingText = if (weightInvalid) ({ Text("Zero or more") }) else null,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .bringIntoViewRequester(weightRequester),
         )
         IconButton(
             onClick = onRemove,
@@ -340,8 +391,3 @@ fun SetEditorRow(
         }
     }
 }
-
-// Remove focus and close the keyboard when the user presses Done
-private fun dismissKeyboardActions(focusManager: FocusManager) = KeyboardActions(
-    onDone = { focusManager.clearFocus() },
-)
