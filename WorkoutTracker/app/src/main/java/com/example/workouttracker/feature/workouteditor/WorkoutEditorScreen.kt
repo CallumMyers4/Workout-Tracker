@@ -2,16 +2,24 @@ package com.example.workouttracker.feature.workouteditor
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -27,9 +35,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.example.workouttracker.R
 import com.example.workouttracker.core.result.ValidationResult
@@ -42,6 +56,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 // Function to display the new or edit workout page
@@ -76,6 +94,12 @@ fun WorkoutEditorScreen(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
+    val density = LocalDensity.current
+    val imeInsets = WindowInsets.ime
+    val nameBringIntoViewRequester = remember { BringIntoViewRequester() }
+    val coroutineScope = rememberCoroutineScope()
+    var scrollToAddedExercise by remember { mutableStateOf(false) }
     var showDiscardConfirmation by remember { mutableStateOf(false) }
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val invalid = uiState.validationResult as? ValidationResult.Invalid
@@ -91,6 +115,14 @@ fun WorkoutEditorScreen(
     // Scroll to an exercise when one of its inputs fails validation
     LaunchedEffect(invalid) {
         invalid?.exerciseIndex?.let { listState.animateScrollToItem(it) }
+    }
+    // Keep exercises added at the bottom of the draft visible.
+    LaunchedEffect(uiState.draft.exercises.size) {
+        val exerciseCount = uiState.draft.exercises.size
+        if (scrollToAddedExercise && exerciseCount > 0) {
+            listState.animateScrollToItem(exerciseCount - 1)
+            scrollToAddedExercise = false
+        }
     }
 
     Column(modifier = modifier.fillMaxSize().imePadding()) {
@@ -114,8 +146,18 @@ fun WorkoutEditorScreen(
                     onValueChange = onNameChanged,
                     label = { Text("Workout name") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = bringIntoViewOnDone(
+                        focusManager = focusManager,
+                        requester = nameBringIntoViewRequester,
+                        coroutineScope = coroutineScope,
+                        density = density,
+                        imeInsets = imeInsets,
+                    ),
                     isError = invalid?.field == com.example.workouttracker.core.result.WorkoutField.NAME,
-                    modifier = Modifier.weight(1.5f),
+                    modifier = Modifier
+                        .weight(1.5f)
+                        .bringIntoViewRequester(nameBringIntoViewRequester),
                 )
                 }
 
@@ -157,30 +199,46 @@ fun WorkoutEditorScreen(
         }
         // Hide workout action buttons while typing to leave more room above the keyboard
         if (!keyboardVisible) {
-            Row(
+            BoxWithConstraints(
                 modifier = Modifier.fillMaxWidth()
                     .padding(12.dp),
-                horizontalArrangement = Arrangement.Absolute.SpaceEvenly,
             ) {
-                // Clear a new draft or restore an edit to its originally loaded values
-                DestructiveButton(
-                    text = if (isEditing) "Reset" else "Clear",
-                    onClick = onRequestClear,
-                    enabled = !uiState.isSaving && (!isEditing || uiState.isDirty),
-                )
+                val useCompactLabels = maxWidth < 360.dp
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    // Clear a new draft or restore an edit to its originally loaded values
+                    DestructiveButton(
+                        text = if (isEditing) "Reset" else "Clear",
+                        onClick = onRequestClear,
+                        enabled = !uiState.isSaving && (!isEditing || uiState.isDirty),
+                        onCard = useCompactLabels,
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                    )
 
-                // Create add exercise button
-                GenericButton(
-                    text = "Add Exercise",
-                    onClick = onAddExercise,
-                )
+                    // Create add exercise button
+                    GenericButton(
+                        text = "Add Exercise",
+                        onClick = {
+                            scrollToAddedExercise = true
+                            onAddExercise()
+                        },
+                        onCard = useCompactLabels,
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                    )
 
-                // Create save button
-                ActionButton(
-                    text = "Save",
-                    onClick = onSave,
-                    enabled = !uiState.isSaving,
-                )
+                    // Create save button
+                    ActionButton(
+                        text = "Save",
+                        onClick = onSave,
+                        enabled = !uiState.isSaving,
+                        onCard = useCompactLabels,
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                    )
+                }
             }
         }
     }
@@ -241,3 +299,22 @@ fun WorkoutEditorScreen(
 
 // Format workout dates for display in the editor
 private val EDITOR_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-uuuu")
+
+internal fun bringIntoViewOnDone(
+    focusManager: FocusManager,
+    requester: BringIntoViewRequester,
+    coroutineScope: CoroutineScope,
+    density: Density,
+    imeInsets: WindowInsets,
+) = KeyboardActions(onDone = {
+    coroutineScope.launch {
+        requester.bringIntoView()
+        focusManager.clearFocus()
+        // The editor actions and app navigation return after the IME closes,
+        // reducing the viewport. Scroll again after that new layout is applied.
+        snapshotFlow { imeInsets.getBottom(density) }.first { it == 0 }
+        withFrameNanos { }
+        withFrameNanos { }
+        requester.bringIntoView()
+    }
+})
