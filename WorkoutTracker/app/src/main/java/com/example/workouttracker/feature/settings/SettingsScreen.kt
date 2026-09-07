@@ -15,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
@@ -77,13 +76,6 @@ fun SettingsScreen(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                uiState.feedbackMessage?.let { message ->
-                    MessageCard(message = message, isError = false)
-                }
-                uiState.errorMessage?.let { message ->
-                    MessageCard(message = message, isError = true)
-                }
-
                 SettingsSectionCard(
                     title = "Appearance",
                     supportingText = "Choose how the app looks on this device.",
@@ -241,15 +233,7 @@ private fun DriveSettingsCard(
         title = "Google Drive Backup",
         supportingText = "Keep an optional copy of your complete workout database in Drive.",
     ) {
-        //TODO: Make this a flash notification not constant, and user-friendly errors
         BackupStatus(state)
-        if (state is BackupConnectionState.Error) {
-            Text(
-                text = state.message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
 
         // Show either connected or disconnected button based on state
         // Only show options to back up or restore when connected
@@ -338,36 +322,6 @@ private fun BackupStatus(state: BackupConnectionState) {
                 fontWeight = FontWeight.Medium,
             )
         }
-    }
-}
-
-// Display a success or error message using the correct theme colours
-@Composable
-private fun MessageCard(message: String, isError: Boolean) {
-    val containerColor = if (isError) {
-        MaterialTheme.colorScheme.errorContainer
-    } else {
-        MaterialTheme.colorScheme.secondaryContainer
-    }
-    val contentColor = if (isError) {
-        MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        MaterialTheme.colorScheme.onSecondaryContainer
-    }
-
-    GenericCard(
-        colors = CardDefaults.cardColors(
-            containerColor = containerColor,
-            contentColor = contentColor,
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { liveRegion = LiveRegionMode.Polite },
-    ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-        )
     }
 }
 

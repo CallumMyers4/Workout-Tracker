@@ -18,12 +18,22 @@ class DriveBackupRepository(
     // Prevent backup, restore, sign-in, and sign-out operations from running at the same time
     private val state = MutableStateFlow<BackupConnectionState>(BackupConnectionState.SignedOut)
     private val operationMutex = Mutex()
-    // Check the current Google authorization when the settings page starts observing
+    private val initializationMutex = Mutex()
+    private var hasCheckedInitialAuthorization = false
+    // Check Google authorization once when this repository is first observed
     override val connectionState: Flow<BackupConnectionState> = state.asStateFlow().onStart {
-        if (!authorizationGateway.isAvailable()) {
-            state.value = BackupConnectionState.Unavailable
-        } else if (state.value == BackupConnectionState.SignedOut && authorizationGateway.hasAuthorization()) {
-            state.value = BackupConnectionState.Connected
+        initializationMutex.withLock {
+            if (!hasCheckedInitialAuthorization) {
+                hasCheckedInitialAuthorization = true
+                if (!authorizationGateway.isAvailable()) {
+                    state.value = BackupConnectionState.Unavailable
+                } else if (
+                    state.value == BackupConnectionState.SignedOut &&
+                    authorizationGateway.hasAuthorization()
+                ) {
+                    state.value = BackupConnectionState.Connected
+                }
+            }
         }
     }
 
@@ -35,9 +45,14 @@ class DriveBackupRepository(
                 return@withLock
             }
             state.value = BackupConnectionState.Authorizing
-            runCatching { authorizationGateway.authorize() }
-                .onSuccess { state.value = BackupConnectionState.Connected }
-                .onFailure { state.value = BackupConnectionState.Error(it.userMessage()) }
+            try {
+                authorizationGateway.authorize()
+                state.value = BackupConnectionState.Connected
+            } catch (error: Throwable) {
+                state.value = BackupConnectionState.Error(error.userMessage())
+                // Let the caller distinguish a failed connection from a completed one
+                throw error
+            }
         }
     }
 
@@ -99,6 +114,8 @@ class DriveBackupRepository(
                     runCatching { authorizationGateway.revoke() }
                 }
                 state.value = BackupConnectionState.Error(error.userMessage())
+                // Preserve the error state while allowing the UI to show a failure result
+                throw error
             }
         } finally {
             operationMutex.unlock()

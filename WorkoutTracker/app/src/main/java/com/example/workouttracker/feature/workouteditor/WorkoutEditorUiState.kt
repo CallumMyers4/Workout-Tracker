@@ -1,5 +1,6 @@
 package com.example.workouttracker.feature.workouteditor
 
+import com.example.workouttracker.core.model.AppNotification
 import com.example.workouttracker.core.model.CatalogExercise
 import com.example.workouttracker.core.model.WorkoutDraft
 import com.example.workouttracker.core.result.ValidationResult
@@ -14,7 +15,6 @@ data class WorkoutEditorUiState(
     val showClearConfirmation: Boolean = false,
     val validationResult: ValidationResult? = null,
     val errorMessage: String? = null,
-    val statusMessage: String? = null,
     val noteEditor: NoteEditorState? = null,
 )
 
@@ -39,4 +39,6 @@ enum class NoteScope : Serializable {
 sealed interface WorkoutEditorEvent {
     // Tell Home to return to the updated workout after an edit is saved
     data class Saved(val workoutId: Long) : WorkoutEditorEvent
+    // Display the result of a save without retaining it in editor state
+    data class Notify(val notification: AppNotification) : WorkoutEditorEvent
 }

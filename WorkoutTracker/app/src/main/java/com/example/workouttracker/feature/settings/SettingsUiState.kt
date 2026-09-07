@@ -3,6 +3,7 @@ package com.example.workouttracker.feature.settings
 import com.example.workouttracker.core.model.AppPreferences
 import com.example.workouttracker.core.model.CatalogExercise
 import com.example.workouttracker.domain.repository.BackupConnectionState
+import com.example.workouttracker.core.model.AppNotification
 
 // Current state of the settings page
 data class SettingsUiState(
@@ -13,9 +14,11 @@ data class SettingsUiState(
     val showBackupConfirmation: Boolean = false,
     val showRestoreConfirmation: Boolean = false,
     val exerciseDialog: ExerciseDialogState? = null,
-    val feedbackMessage: String? = null,
     val errorMessage: String? = null,
 )
+
+// One-time result emitted by a settings action
+data class SettingsEvent(val notification: AppNotification)
 
 // Current exercise library action which requires another dialog
 sealed interface ExerciseDialogState {

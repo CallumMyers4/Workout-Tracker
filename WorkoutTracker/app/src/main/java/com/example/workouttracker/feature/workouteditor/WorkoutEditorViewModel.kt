@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.workouttracker.core.model.ExerciseSetDraft
 import com.example.workouttracker.core.model.Workout
 import com.example.workouttracker.core.model.WorkoutDraft
+import com.example.workouttracker.core.model.AppNotification
+import com.example.workouttracker.core.model.AppNotificationType
 import com.example.workouttracker.core.model.WorkoutExerciseDraft
 import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.core.result.ValidationResult
@@ -330,7 +332,6 @@ class WorkoutEditorViewModel(
                 showClearConfirmation = false,
                 validationResult = null,
                 errorMessage = null,
-                statusMessage = null,
             )
         }
     }
@@ -365,16 +366,30 @@ class WorkoutEditorViewModel(
                                 isSaving = false,
                                 isDirty = false,
                                 validationResult = null,
-                                statusMessage = "Workout saved.",
                             )
                         }
+                        _events.emit(
+                            WorkoutEditorEvent.Notify(
+                                AppNotification("Workout saved.", AppNotificationType.SUCCESS),
+                            ),
+                        )
                     } else {
                         _uiState.update { it.copy(isSaving = false, isDirty = false) }
+                        _events.emit(
+                            WorkoutEditorEvent.Notify(
+                                AppNotification("Workout updated.", AppNotificationType.SUCCESS),
+                            ),
+                        )
                         _events.emit(WorkoutEditorEvent.Saved(workoutId))
                     }
                 }
                 .onFailure { error ->
-                    _uiState.update { it.copy(isSaving = false, errorMessage = error.userMessage()) }
+                    _uiState.update { it.copy(isSaving = false) }
+                    _events.emit(
+                        WorkoutEditorEvent.Notify(
+                            AppNotification(error.userMessage(), AppNotificationType.ERROR),
+                        ),
+                    )
                 }
         }
     }
@@ -389,7 +404,6 @@ class WorkoutEditorViewModel(
                 isDirty = true,
                 validationResult = null,
                 errorMessage = null,
-                statusMessage = null,
             )
         }
     }

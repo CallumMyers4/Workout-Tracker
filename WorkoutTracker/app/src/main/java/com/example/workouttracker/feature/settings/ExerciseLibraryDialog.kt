@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.example.workouttracker.core.model.CatalogExercise
+import com.example.workouttracker.ui.theme.NotificationController
+import com.example.workouttracker.ui.theme.NotificationPopupOverlay
 
 // Display the exercise library and allow exercises to be added, renamed, or combined
 @Composable
@@ -37,6 +39,7 @@ fun ExerciseLibraryDialog(
     onCombine: (sourceId: Long, targetId: Long) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    notificationController: NotificationController? = null,
 ) {
     // Keep track of the exercise currently being added or renamed
     var input by remember { mutableStateOf("") }
@@ -50,8 +53,9 @@ fun ExerciseLibraryDialog(
 
     // Create the main exercise library dialog
     Dialog(onDismissRequest = onDismiss) {
-        Surface(modifier) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(modifier) {
+            Surface {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Exercise Library")
                 OutlinedTextField(
                     value = input,
@@ -152,7 +156,12 @@ fun ExerciseLibraryDialog(
                         }
                     }
                 }
-                TextButton(onClick = onDismiss) { Text("Close") }
+                    TextButton(onClick = onDismiss) { Text("Close") }
+                }
+            }
+            // Mirror results above the separate dialog window while it is open
+            notificationController?.let { controller ->
+                NotificationPopupOverlay(notification = controller.current)
             }
         }
     }

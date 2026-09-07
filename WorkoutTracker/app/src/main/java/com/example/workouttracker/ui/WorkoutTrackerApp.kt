@@ -2,6 +2,7 @@ package com.example.workouttracker.ui
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,6 +52,8 @@ import com.example.workouttracker.feature.workoutlist.WorkoutListScreen
 import com.example.workouttracker.feature.workoutlist.WorkoutListViewModel
 import com.example.workouttracker.navigation.AppRoute
 import com.example.workouttracker.ui.theme.BottomNavigationButton
+import com.example.workouttracker.ui.theme.NotificationPopupHost
+import com.example.workouttracker.ui.theme.rememberNotificationController
 
 // Create the navigation graph and connect each page to its ViewModel
 @Composable
@@ -60,25 +63,27 @@ fun WorkoutTrackerApp(
     startDestination: AppRoute = AppRoute.WorkoutList,
 ) {
     val navController = rememberNavController()
+    val notificationController = rememberNotificationController()
     // Observe the selected unit once and share it with every weight-based screen
     val preferences by container.preferencesRepository.preferences.collectAsStateWithLifecycle(
         initialValue = AppPreferences(),
     )
     var pendingTabRoute by remember { mutableStateOf<AppRoute?>(null) }
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        bottomBar = {
-            PrimaryNavigation(
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            bottomBar = {
+                PrimaryNavigation(
+                    navController = navController,
+                    onEditExitRequested = { pendingTabRoute = it },
+                )
+            },
+        ) { innerPadding ->
+            NavHost(
                 navController = navController,
-                onEditExitRequested = { pendingTabRoute = it },
-            )
-        },
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = startDestination,
-            modifier = Modifier.padding(innerPadding),
-        ) {
+                startDestination = startDestination,
+                modifier = Modifier.padding(innerPadding),
+            ) {
             // Create the home workout list page
             composable<AppRoute.WorkoutList> {
                 val model: WorkoutListViewModel = viewModel(
@@ -121,11 +126,14 @@ fun WorkoutTrackerApp(
                 // Return to Home after the displayed workout is deleted
                 LaunchedEffect(model) {
                     model.events.collect { event ->
-                        if (event == WorkoutDetailEvent.Deleted) {
-                            navController.navigate(AppRoute.WorkoutList) {
-                                popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
-                                launchSingleTop = true
+                        when (event) {
+                            WorkoutDetailEvent.Deleted -> {
+                                navController.navigate(AppRoute.WorkoutList) {
+                                    popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
+                                    launchSingleTop = true
+                                }
                             }
+                            is WorkoutDetailEvent.Notify -> notificationController.show(event.notification)
                         }
                     }
                 }
@@ -156,6 +164,7 @@ fun WorkoutTrackerApp(
                     isEditing = false,
                     onBack = { navController.popBackStack() },
                     onSaved = {},
+                    onNotification = notificationController::show,
                 )
             }
             // Draw an existing-workout editor within Home
@@ -173,6 +182,7 @@ fun WorkoutTrackerApp(
                     isEditing = true,
                     onBack = { returnToDetails(route.workoutId) },
                     onSaved = returnToDetails,
+                    onNotification = notificationController::show,
                     tabExitRequested = pendingTabRoute != null,
                     onCancelTabExit = { pendingTabRoute = null },
                     onConfirmTabExit = {
@@ -226,6 +236,12 @@ fun WorkoutTrackerApp(
                     },
                 )
                 val state by model.uiState.collectAsStateWithLifecycle()
+                // Forward settings results to the app-level host so dialogs may close safely
+                LaunchedEffect(model) {
+                    model.events.collect { event ->
+                        notificationController.show(event.notification)
+                    }
+                }
                 SettingsScreen(
                     uiState = state,
                     onThemeChanged = model::setDarkTheme,
@@ -246,10 +262,14 @@ fun WorkoutTrackerApp(
                         onDelete = model::deleteExercise,
                         onCombine = model::combineExercises,
                         onDismiss = model::hideExerciseLibrary,
+                        notificationController = notificationController,
                     )
                 }
             }
+            }
         }
+        // Keep action results visible across navigation and above the bottom navigation bar
+        NotificationPopupHost(controller = notificationController)
     }
 }
 
@@ -261,6 +281,7 @@ private fun WorkoutEditorDestination(
     isEditing: Boolean,
     onBack: () -> Unit,
     onSaved: (Long) -> Unit,
+    onNotification: (com.example.workouttracker.core.model.AppNotification) -> Unit,
     tabExitRequested: Boolean = false,
     onCancelTabExit: () -> Unit = {},
     onConfirmTabExit: () -> Unit = {},
@@ -284,7 +305,10 @@ private fun WorkoutEditorDestination(
     }
     LaunchedEffect(model) {
         model.events.collect { event ->
-            if (event is WorkoutEditorEvent.Saved) onSaved(event.workoutId)
+            when (event) {
+                is WorkoutEditorEvent.Saved -> onSaved(event.workoutId)
+                is WorkoutEditorEvent.Notify -> onNotification(event.notification)
+            }
         }
     }
     WorkoutEditorScreen(

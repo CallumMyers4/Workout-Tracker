@@ -170,7 +170,6 @@ fun WorkoutEditorScreen(
                     .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
             )
             uiState.errorMessage?.let { Text(it, Modifier.padding(horizontal = 16.dp)) }
-            uiState.statusMessage?.let { Text(it, Modifier.padding(horizontal = 16.dp)) }
             invalid?.let { Text(it.message, Modifier.padding(horizontal = 16.dp)) }
         }
         // Display each exercise inside the scrolling section of the page

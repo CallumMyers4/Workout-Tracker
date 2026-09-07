@@ -1,5 +1,6 @@
 package com.example.workouttracker.feature.workoutdetail
 
+import com.example.workouttracker.core.model.AppNotification
 import com.example.workouttracker.core.model.Workout
 
 // Current state of the workout details page
@@ -15,4 +16,6 @@ data class WorkoutDetailUiState(
 sealed interface WorkoutDetailEvent {
     // Tell the app to leave the page after the workout has been deleted
     data object Deleted : WorkoutDetailEvent
+    // Display an action result independently from the detail screen lifecycle
+    data class Notify(val notification: AppNotification) : WorkoutDetailEvent
 }

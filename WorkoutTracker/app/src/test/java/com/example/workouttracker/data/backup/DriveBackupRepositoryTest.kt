@@ -5,11 +5,29 @@ import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 // Check backup state changes and cleanup using local test implementations
 class DriveBackupRepositoryTest {
+    @Test
+    // Keep an explicit disconnect when a new Settings collector starts observing
+    fun reconnectingCollectorDoesNotUndoSignOut() = runTest {
+        val authorization = FakeAuthorization(clearAuthorizationOnRevoke = false)
+        val repository = DriveBackupRepository(
+            authorizationGateway = authorization,
+            driveGateway = FakeDriveGateway(),
+            checkpoint = FakeCheckpoint(),
+        )
+
+        repository.connectionState.first()
+        repository.signIn()
+        repository.signOut()
+
+        assertEquals(BackupConnectionState.SignedOut, repository.connectionState.first())
+    }
+
     @Test
     // Confirm that expired authorization disconnects Drive and deletes the temporary file
     fun invalidAuthorizationDisconnectsAndCleansTemporaryFile() = runTest {
@@ -35,22 +53,48 @@ class DriveBackupRepositoryTest {
 
         repository.connectionState.first()
         repository.signIn()
-        repository.backup()
+        var failed = false
+        try {
+            repository.backup()
+        } catch (_: InvalidDriveAuthorizationException) {
+            failed = true
+        }
 
+        assertTrue(failed)
         assertTrue(authorization.revoked)
         assertTrue(repository.connectionState.first() is BackupConnectionState.Error)
         assertFalse(checkpoint.temporary.exists())
     }
 
     // Simulate Google authorization without contacting Google Play Services
-    private class FakeAuthorization : GoogleAuthorizationGateway {
+    private class FakeAuthorization(
+        private val clearAuthorizationOnRevoke: Boolean = true,
+    ) : GoogleAuthorizationGateway {
         var authorized = false
         var revoked = false
         override fun isAvailable() = true
         override suspend fun authorize() { authorized = true }
-        override suspend fun revoke() { authorized = false; revoked = true }
+        override suspend fun revoke() {
+            if (clearAuthorizationOnRevoke) authorized = false
+            revoked = true
+        }
         override suspend fun hasAuthorization() = authorized
         override suspend fun accessToken() = "token"
+    }
+
+    // Provide Drive operations which complete without external network access
+    private class FakeDriveGateway : GoogleDriveGateway {
+        override suspend fun uploadOrReplace(
+            localFile: File,
+            folderName: String,
+            remoteName: String,
+        ) = "file-id"
+
+        override suspend fun downloadLatest(
+            folderName: String,
+            remoteName: String,
+            destination: File,
+        ) = destination
     }
 
     // Reuse one temporary file while recording checkpoint cleanup
