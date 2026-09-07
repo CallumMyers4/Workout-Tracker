@@ -32,11 +32,13 @@ class WorkoutListViewModel(
     val uiState: StateFlow<WorkoutListUiState> = _uiState.asStateFlow()
     private var allWorkouts = emptyList<com.example.workouttracker.core.model.WorkoutSummary>()
     private var searchJob: Job? = null
+    private val refreshRequests = MutableStateFlow(0L)
 
     // Reload the workout list whenever a saved browsing preference changes
     init {
         viewModelScope.launch {
-            preferencesRepository.preferences.flatMapLatest { preferences ->
+            combine(preferencesRepository.preferences, refreshRequests) { preferences, _ -> preferences }
+                .flatMapLatest { preferences ->
                 _uiState.update {
                     it.copy(
                         searchText = preferences.searchText,
@@ -68,6 +70,13 @@ class WorkoutListViewModel(
                     publish()
                 }
         }
+    }
+
+    // Restart repository observation and paging after the database has been restored
+    fun refresh() {
+        resetPaging()
+        _uiState.update { it.copy(isLoading = true) }
+        refreshRequests.value++
     }
 
     // Update the search immediately and save it after the user pauses typing

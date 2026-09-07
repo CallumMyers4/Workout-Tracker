@@ -191,7 +191,10 @@ class SettingsViewModel(
         _uiState.update { it.copy(showRestoreConfirmation = false) }
         viewModelScope.launch {
             runCatching { backupRepository.restore() }
-                .onSuccess { notifySuccess("Backup restored.") }
+                .onSuccess {
+                    notifySuccess("Backup restored.")
+                    _events.emit(SettingsEvent.DataRestored)
+                }
                 .onFailure(::notifyError)
         }
     }
@@ -223,14 +226,14 @@ class SettingsViewModel(
     // Emit a green one-time result without retaining it in settings state
     private fun notifySuccess(message: String) {
         _events.tryEmit(
-            SettingsEvent(AppNotification(message, AppNotificationType.SUCCESS)),
+            SettingsEvent.Notify(AppNotification(message, AppNotificationType.SUCCESS)),
         )
     }
 
     // Emit a red one-time result with a user-friendly failure message
     private fun notifyError(error: Throwable) {
         _events.tryEmit(
-            SettingsEvent(AppNotification(error.userMessage(), AppNotificationType.ERROR)),
+            SettingsEvent.Notify(AppNotification(error.userMessage(), AppNotificationType.ERROR)),
         )
     }
 

@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -42,6 +43,7 @@ import com.example.workouttracker.feature.goals.GoalsViewModel
 import com.example.workouttracker.feature.settings.ExerciseLibraryDialog
 import com.example.workouttracker.feature.settings.SettingsScreen
 import com.example.workouttracker.feature.settings.SettingsViewModel
+import com.example.workouttracker.feature.settings.SettingsEvent
 import com.example.workouttracker.feature.workoutdetail.WorkoutDetailEvent
 import com.example.workouttracker.feature.workoutdetail.WorkoutDetailScreen
 import com.example.workouttracker.feature.workoutdetail.WorkoutDetailViewModel
@@ -69,20 +71,47 @@ fun WorkoutTrackerApp(
         initialValue = AppPreferences(),
     )
     var pendingTabRoute by remember { mutableStateOf<AppRoute?>(null) }
-    Box(modifier = modifier.fillMaxSize()) {
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            bottomBar = {
-                PrimaryNavigation(
-                    navController = navController,
-                    onEditExitRequested = { pendingTabRoute = it },
+    var workoutRefreshKey by remember { mutableLongStateOf(0L) }
+    // Keep Settings operations alive when the user navigates to another page
+    val settingsModel: SettingsViewModel = viewModel(
+        factory = viewModelFactory {
+            initializer {
+                SettingsViewModel(
+                    container.preferencesRepository,
+                    container.exerciseRepository,
+                    container.backupRepository,
                 )
-            },
-        ) { innerPadding ->
+            }
+        },
+    )
+    // Handle Drive and exercise results independently from the Settings destination
+    LaunchedEffect(settingsModel) {
+        settingsModel.events.collect { event ->
+            when (event) {
+                is SettingsEvent.Notify -> notificationController.show(event.notification)
+                SettingsEvent.DataRestored -> workoutRefreshKey++
+            }
+        }
+    }
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        bottomBar = {
+            PrimaryNavigation(
+                navController = navController,
+                onEditExitRequested = { pendingTabRoute = it },
+            )
+        },
+    ) { innerPadding ->
+        // Use the Scaffold content boundary to position notifications above navigation
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+        ) {
             NavHost(
                 navController = navController,
                 startDestination = startDestination,
-                modifier = Modifier.padding(innerPadding),
+                modifier = Modifier.fillMaxSize(),
             ) {
             // Create the home workout list page
             composable<AppRoute.WorkoutList> {
@@ -97,6 +126,10 @@ fun WorkoutTrackerApp(
                     },
                 )
                 val state by model.uiState.collectAsStateWithLifecycle()
+                // Reload retained Home data after Settings restores the database
+                LaunchedEffect(workoutRefreshKey) {
+                    if (workoutRefreshKey > 0L) model.refresh()
+                }
                 WorkoutListScreen(
                     uiState = state,
                     onSearchChanged = model::onSearchChanged,
@@ -224,52 +257,35 @@ fun WorkoutTrackerApp(
             }
             // Create the settings page and its exercise library dialog
             composable<AppRoute.Settings> {
-                val model: SettingsViewModel = viewModel(
-                    factory = viewModelFactory {
-                        initializer {
-                            SettingsViewModel(
-                                container.preferencesRepository,
-                                container.exerciseRepository,
-                                container.backupRepository,
-                            )
-                        }
-                    },
-                )
-                val state by model.uiState.collectAsStateWithLifecycle()
-                // Forward settings results to the app-level host so dialogs may close safely
-                LaunchedEffect(model) {
-                    model.events.collect { event ->
-                        notificationController.show(event.notification)
-                    }
-                }
+                val state by settingsModel.uiState.collectAsStateWithLifecycle()
                 SettingsScreen(
                     uiState = state,
-                    onThemeChanged = model::setDarkTheme,
-                    onWeightsUnitChanged = model::setWeightsUnit,
-                    onManageExercises = model::showExerciseLibrary,
-                    onSignInOrOut = model::signInOrOut,
-                    onRequestBackup = model::requestBackup,
-                    onRequestRestore = model::requestRestore,
-                    onDismissConfirmation = model::dismissConfirmation,
-                    onConfirmBackup = model::confirmBackup,
-                    onConfirmRestore = model::confirmRestore,
+                    onThemeChanged = settingsModel::setDarkTheme,
+                    onWeightsUnitChanged = settingsModel::setWeightsUnit,
+                    onManageExercises = settingsModel::showExerciseLibrary,
+                    onSignInOrOut = settingsModel::signInOrOut,
+                    onRequestBackup = settingsModel::requestBackup,
+                    onRequestRestore = settingsModel::requestRestore,
+                    onDismissConfirmation = settingsModel::dismissConfirmation,
+                    onConfirmBackup = settingsModel::confirmBackup,
+                    onConfirmRestore = settingsModel::confirmRestore,
                 )
                 if (state.isExerciseLibraryVisible) {
                     ExerciseLibraryDialog(
                         exercises = state.exercises,
-                        onAdd = model::addExercise,
-                        onRename = model::renameExercise,
-                        onDelete = model::deleteExercise,
-                        onCombine = model::combineExercises,
-                        onDismiss = model::hideExerciseLibrary,
+                        onAdd = settingsModel::addExercise,
+                        onRename = settingsModel::renameExercise,
+                        onDelete = settingsModel::deleteExercise,
+                        onCombine = settingsModel::combineExercises,
+                        onDismiss = settingsModel::hideExerciseLibrary,
                         notificationController = notificationController,
                     )
                 }
             }
             }
+            // Keep action results visible across navigation with a small gap above the bar
+            NotificationPopupHost(controller = notificationController)
         }
-        // Keep action results visible across navigation and above the bottom navigation bar
-        NotificationPopupHost(controller = notificationController)
     }
 }
 

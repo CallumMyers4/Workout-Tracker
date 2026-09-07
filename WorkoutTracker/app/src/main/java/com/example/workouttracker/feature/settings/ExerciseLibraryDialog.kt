@@ -161,7 +161,10 @@ fun ExerciseLibraryDialog(
             }
             // Mirror results above the separate dialog window while it is open
             notificationController?.let { controller ->
-                NotificationPopupOverlay(notification = controller.current)
+                NotificationPopupOverlay(
+                    notification = controller.current,
+                    onDismiss = controller::dismiss,
+                )
             }
         }
     }

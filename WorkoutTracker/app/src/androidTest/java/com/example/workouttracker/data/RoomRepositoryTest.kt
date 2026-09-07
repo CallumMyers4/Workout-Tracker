@@ -10,6 +10,7 @@ import com.example.workouttracker.core.model.WorkoutExerciseDraft
 import com.example.workouttracker.data.local.WorkoutDatabase
 import com.example.workouttracker.data.repository.RoomExerciseRepository
 import com.example.workouttracker.data.repository.RoomWorkoutRepository
+import com.example.workouttracker.data.backup.RoomCheckpoint
 import java.time.LocalDate
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -83,5 +84,60 @@ class RoomRepositoryTest {
         assertEquals("Shared note", exercises.observeWorkoutNameNote("push day").first())
         exercises.setWorkoutNameNote("PUSH DAY", null)
         assertNull(exercises.observeWorkoutNameNote("push day").first())
+    }
+
+    @Test
+    // Restore into an observed Room database and immediately open the restored workout
+    fun restoredWorkoutCanBeListedAndOpenedImmediately() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val candidateName = "restore-candidate-${System.nanoTime()}.db"
+        context.deleteDatabase(candidateName)
+        val candidate = Room.databaseBuilder(context, WorkoutDatabase::class.java, candidateName)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val candidateExercises = RoomExerciseRepository(candidate)
+            val candidateWorkouts = RoomWorkoutRepository(candidate)
+            val benchId = candidateExercises.addExercise("Restored bench press")
+            candidateWorkouts.saveWorkout(
+                WorkoutDraft(
+                    name = "Restored workout",
+                    date = LocalDate.of(2026, 9, 1),
+                    exercises = listOf(
+                        WorkoutExerciseDraft(
+                            catalogExerciseId = benchId,
+                            name = "Restored bench press",
+                            sets = listOf(ExerciseSetDraft(reps = "5", weightKg = "80")),
+                        ),
+                    ),
+                ),
+            )
+        } finally {
+            candidate.close()
+        }
+
+        try {
+            // Start Room observation before restoring to exercise its invalidation lifecycle
+            workouts.observeWorkoutSummaries(
+                query = "",
+                filter = com.example.workouttracker.core.model.WorkoutFilter.ALL_TIME,
+                sort = com.example.workouttracker.core.model.WorkoutSort.NEWEST,
+                grouping = com.example.workouttracker.core.model.WorkoutGrouping.NONE,
+            ).first()
+            RoomCheckpoint(database, context).restore(context.getDatabasePath(candidateName))
+
+            val summaries = workouts.observeWorkoutSummaries(
+                query = "",
+                filter = com.example.workouttracker.core.model.WorkoutFilter.ALL_TIME,
+                sort = com.example.workouttracker.core.model.WorkoutSort.NEWEST,
+                grouping = com.example.workouttracker.core.model.WorkoutGrouping.NONE,
+            ).first()
+            val restored = workouts.observeWorkout(summaries.single().id).first()
+
+            assertEquals("Restored workout", restored?.name)
+            assertEquals("Restored bench press", restored?.exercises?.single()?.name)
+        } finally {
+            context.deleteDatabase(candidateName)
+        }
     }
 }

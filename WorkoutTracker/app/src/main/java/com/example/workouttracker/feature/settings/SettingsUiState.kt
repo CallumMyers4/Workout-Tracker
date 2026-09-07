@@ -18,7 +18,11 @@ data class SettingsUiState(
 )
 
 // One-time result emitted by a settings action
-data class SettingsEvent(val notification: AppNotification)
+sealed interface SettingsEvent {
+    data class Notify(val notification: AppNotification) : SettingsEvent
+    // Tell screens backed by restored database content to reload their data
+    data object DataRestored : SettingsEvent
+}
 
 // Current exercise library action which requires another dialog
 sealed interface ExerciseDialogState {
