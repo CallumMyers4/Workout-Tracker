@@ -12,6 +12,49 @@ import org.junit.Test
 // Check backup state changes and cleanup using local test implementations
 class DriveBackupRepositoryTest {
     @Test
+    fun unavailableServicesAreRetriedAndRestoreExistingAuthorization() = runTest {
+        val authorization = FakeAuthorization().apply {
+            available = false
+            authorized = true
+        }
+        val repository = DriveBackupRepository(authorization, FakeDriveGateway(), FakeCheckpoint())
+
+        assertEquals(BackupConnectionState.Unavailable, repository.connectionState.first())
+        assertEquals(BackupConnectionState.Unavailable, repository.connectionState.first())
+        authorization.available = true
+
+        assertEquals(BackupConnectionState.Connected, repository.connectionState.first())
+    }
+
+    @Test
+    fun recoveredServicesWithoutAuthorizationAllowSignIn() = runTest {
+        val authorization = FakeAuthorization().apply { available = false }
+        val repository = DriveBackupRepository(authorization, FakeDriveGateway(), FakeCheckpoint())
+
+        assertEquals(BackupConnectionState.Unavailable, repository.connectionState.first())
+        authorization.available = true
+
+        assertEquals(BackupConnectionState.SignedOut, repository.connectionState.first())
+        repository.signIn()
+        assertEquals(BackupConnectionState.Connected, repository.connectionState.first())
+    }
+
+    @Test
+    fun signOutWhileInitializationIsPendingPreventsAutomaticReconnection() = runTest {
+        val authorization = FakeAuthorization(clearAuthorizationOnRevoke = false).apply {
+            available = false
+            authorized = true
+        }
+        val repository = DriveBackupRepository(authorization, FakeDriveGateway(), FakeCheckpoint())
+
+        assertEquals(BackupConnectionState.Unavailable, repository.connectionState.first())
+        repository.signOut()
+        authorization.available = true
+
+        assertEquals(BackupConnectionState.SignedOut, repository.connectionState.first())
+    }
+
+    @Test
     // Keep an explicit disconnect when a new Settings collector starts observing
     fun reconnectingCollectorDoesNotUndoSignOut() = runTest {
         val authorization = FakeAuthorization(clearAuthorizationOnRevoke = false)
@@ -72,7 +115,8 @@ class DriveBackupRepositoryTest {
     ) : GoogleAuthorizationGateway {
         var authorized = false
         var revoked = false
-        override fun isAvailable() = true
+        var available = true
+        override fun isAvailable() = available
         override suspend fun authorize() { authorized = true }
         override suspend fun revoke() {
             if (clearAuthorizationOnRevoke) authorized = false

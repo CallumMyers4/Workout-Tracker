@@ -20,18 +20,24 @@ class DriveBackupRepository(
     private val operationMutex = Mutex()
     private val initializationMutex = Mutex()
     private var hasCheckedInitialAuthorization = false
-    // Check Google authorization once when this repository is first observed
+    // Check authorization once services are available, retrying on subsequent observations
     override val connectionState: Flow<BackupConnectionState> = state.asStateFlow().onStart {
         initializationMutex.withLock {
             if (!hasCheckedInitialAuthorization) {
-                hasCheckedInitialAuthorization = true
                 if (!authorizationGateway.isAvailable()) {
                     state.value = BackupConnectionState.Unavailable
-                } else if (
-                    state.value == BackupConnectionState.SignedOut &&
-                    authorizationGateway.hasAuthorization()
-                ) {
-                    state.value = BackupConnectionState.Connected
+                } else {
+                    if (
+                        state.value == BackupConnectionState.SignedOut ||
+                        state.value == BackupConnectionState.Unavailable
+                    ) {
+                        state.value = if (authorizationGateway.hasAuthorization()) {
+                            BackupConnectionState.Connected
+                        } else {
+                            BackupConnectionState.SignedOut
+                        }
+                    }
+                    hasCheckedInitialAuthorization = true
                 }
             }
         }
@@ -62,6 +68,7 @@ class DriveBackupRepository(
             try {
                 authorizationGateway.revoke()
             } finally {
+                hasCheckedInitialAuthorization = true
                 state.value = BackupConnectionState.SignedOut
             }
         }
