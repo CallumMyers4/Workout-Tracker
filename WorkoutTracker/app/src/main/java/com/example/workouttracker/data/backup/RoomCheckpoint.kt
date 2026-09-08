@@ -8,7 +8,16 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import androidx.room.withTransaction
+import androidx.room.immediateTransaction
+import androidx.room.useWriterConnection
+import androidx.room.execSQL
+import androidx.room.PooledConnection
+import com.example.workouttracker.data.local.entity.CatalogExerciseEntity
+import com.example.workouttracker.data.local.entity.ExerciseSetEntity
+import com.example.workouttracker.data.local.entity.WorkoutEntity
+import com.example.workouttracker.data.local.entity.WorkoutExerciseEntity
+import com.example.workouttracker.data.local.entity.WorkoutNameNoteEntity
+import java.time.LocalDate
 
 // Requirements for creating, checking, and restoring a complete database checkpoint
 interface DatabaseCheckpoint {
@@ -97,29 +106,122 @@ class RoomCheckpoint(
     // Replace every local table from a previously validated checkpoint
     override suspend fun restore(candidate: File) {
         validate(candidate)
-        withContext(Dispatchers.IO) {
-            val sqlite = database.openHelper.writableDatabase
+        val snapshot = readSnapshot(candidate)
+        // Write the validated snapshot through one Room-managed connection and transaction
+        database.useWriterConnection { connection ->
             // Use one transaction so screens never observe a partly restored database
-            sqlite.execSQL("ATTACH DATABASE ? AS restored", arrayOf(candidate.absolutePath))
-            try {
-                database.withTransaction {
-                    sqlite.execSQL("DELETE FROM exercise_sets")
-                    sqlite.execSQL("DELETE FROM workout_exercises")
-                    sqlite.execSQL("DELETE FROM workouts")
-                    sqlite.execSQL("DELETE FROM workout_name_notes")
-                    sqlite.execSQL("DELETE FROM catalog_exercises")
-                    sqlite.execSQL("INSERT INTO catalog_exercises SELECT * FROM restored.catalog_exercises")
-                    sqlite.execSQL("INSERT INTO workouts SELECT * FROM restored.workouts")
-                    sqlite.execSQL("INSERT INTO workout_exercises SELECT * FROM restored.workout_exercises")
-                    sqlite.execSQL("INSERT INTO exercise_sets SELECT * FROM restored.exercise_sets")
-                    sqlite.execSQL("INSERT INTO workout_name_notes SELECT * FROM restored.workout_name_notes")
-                }
-            } finally {
-                sqlite.execSQL("DETACH DATABASE restored")
+            connection.immediateTransaction {
+                execSQL("DELETE FROM exercise_sets")
+                execSQL("DELETE FROM workout_exercises")
+                execSQL("DELETE FROM workouts")
+                execSQL("DELETE FROM workout_name_notes")
+                execSQL("DELETE FROM catalog_exercises")
+                insertSnapshot(snapshot)
             }
-            database.invalidationTracker.refreshAsync()
         }
     }
+
+    // Read and parse backup rows off the caller's dispatcher before opening the Room writer transaction
+    private suspend fun readSnapshot(candidate: File): BackupSnapshot = withContext(Dispatchers.IO) {
+        val sqlite = SQLiteDatabase.openDatabase(
+            candidate.absolutePath,
+            null,
+            SQLiteDatabase.OPEN_READONLY,
+        )
+        sqlite.use { source ->
+            BackupSnapshot(
+                catalog = source.rawQuery("SELECT id, name, goalKg, note FROM catalog_exercises", null)
+                    .use { cursor ->
+                        buildList {
+                            while (cursor.moveToNext()) {
+                                add(
+                                    CatalogExerciseEntity(
+                                        id = cursor.getLong(0),
+                                        name = cursor.getString(1),
+                                        goalKg = if (cursor.isNull(2)) null else cursor.getDouble(2),
+                                        note = if (cursor.isNull(3)) null else cursor.getString(3),
+                                    ),
+                                )
+                            }
+                        }
+                    },
+                workouts = source.rawQuery("SELECT id, name, date FROM workouts", null).use { cursor ->
+                    buildList {
+                        while (cursor.moveToNext()) {
+                            add(WorkoutEntity(cursor.getLong(0), cursor.getString(1), LocalDate.parse(cursor.getString(2))))
+                        }
+                    }
+                },
+                workoutExercises = source.rawQuery(
+                    "SELECT id, workoutId, catalogExerciseId, position FROM workout_exercises",
+                    null,
+                ).use { cursor ->
+                    buildList {
+                        while (cursor.moveToNext()) {
+                            add(WorkoutExerciseEntity(cursor.getLong(0), cursor.getLong(1), cursor.getLong(2), cursor.getInt(3)))
+                        }
+                    }
+                },
+                sets = source.rawQuery(
+                    "SELECT id, workoutExerciseId, position, reps, weightKg FROM exercise_sets",
+                    null,
+                ).use { cursor ->
+                    buildList {
+                        while (cursor.moveToNext()) {
+                            add(ExerciseSetEntity(cursor.getLong(0), cursor.getLong(1), cursor.getInt(2), cursor.getInt(3), cursor.getDouble(4)))
+                        }
+                    }
+                },
+                notes = source.rawQuery("SELECT workoutName, note FROM workout_name_notes", null).use { cursor ->
+                    buildList {
+                        while (cursor.moveToNext()) add(WorkoutNameNoteEntity(cursor.getString(0), cursor.getString(1)))
+                    }
+                },
+            )
+        }
+    }
+
+    // Insert all snapshot rows with their original IDs and relationships
+    private suspend fun PooledConnection.insertSnapshot(snapshot: BackupSnapshot) {
+        snapshot.catalog.forEach { row ->
+            usePrepared("INSERT INTO catalog_exercises (id, name, goalKg, note) VALUES (?, ?, ?, ?)") {
+                it.bindLong(1, row.id); it.bindText(2, row.name)
+                if (row.goalKg == null) it.bindNull(3) else it.bindDouble(3, row.goalKg)
+                if (row.note == null) it.bindNull(4) else it.bindText(4, row.note)
+                it.step()
+            }
+        }
+        snapshot.workouts.forEach { row ->
+            usePrepared("INSERT INTO workouts (id, name, date) VALUES (?, ?, ?)") {
+                it.bindLong(1, row.id); it.bindText(2, row.name); it.bindText(3, row.date.toString()); it.step()
+            }
+        }
+        snapshot.workoutExercises.forEach { row ->
+            usePrepared("INSERT INTO workout_exercises (id, workoutId, catalogExerciseId, position) VALUES (?, ?, ?, ?)") {
+                it.bindLong(1, row.id); it.bindLong(2, row.workoutId); it.bindLong(3, row.catalogExerciseId)
+                it.bindLong(4, row.position.toLong()); it.step()
+            }
+        }
+        snapshot.sets.forEach { row ->
+            usePrepared("INSERT INTO exercise_sets (id, workoutExerciseId, position, reps, weightKg) VALUES (?, ?, ?, ?, ?)") {
+                it.bindLong(1, row.id); it.bindLong(2, row.workoutExerciseId); it.bindLong(3, row.position.toLong())
+                it.bindLong(4, row.reps.toLong()); it.bindDouble(5, row.weightKg); it.step()
+            }
+        }
+        snapshot.notes.forEach { row ->
+            usePrepared("INSERT INTO workout_name_notes (workoutName, note) VALUES (?, ?)") {
+                it.bindText(1, row.workoutName); it.bindText(2, row.note); it.step()
+            }
+        }
+    }
+
+    private data class BackupSnapshot(
+        val catalog: List<CatalogExerciseEntity>,
+        val workouts: List<WorkoutEntity>,
+        val workoutExercises: List<WorkoutExerciseEntity>,
+        val sets: List<ExerciseSetEntity>,
+        val notes: List<WorkoutNameNoteEntity>,
+    )
 
     private companion object {
         const val SQLITE_HEADER = "SQLite format 3\u0000"

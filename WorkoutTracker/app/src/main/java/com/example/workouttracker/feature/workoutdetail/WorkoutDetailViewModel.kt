@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.workouttracker.domain.repository.WorkoutRepository
+import com.example.workouttracker.core.model.AppNotification
+import com.example.workouttracker.core.model.AppNotificationType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -72,9 +74,21 @@ class WorkoutDetailViewModel(
         _uiState.update { it.copy(showDeleteConfirmation = false, isDeleting = true) }
         viewModelScope.launch {
             runCatching { workoutRepository.deleteWorkout(id) }
-                .onSuccess { _events.emit(WorkoutDetailEvent.Deleted) }
+                .onSuccess {
+                    _events.emit(
+                        WorkoutDetailEvent.Notify(
+                            AppNotification("Workout deleted.", AppNotificationType.SUCCESS),
+                        ),
+                    )
+                    _events.emit(WorkoutDetailEvent.Deleted)
+                }
                 .onFailure { error ->
                     _uiState.update { it.copy(isDeleting = false, errorMessage = error.userMessage()) }
+                    _events.emit(
+                        WorkoutDetailEvent.Notify(
+                            AppNotification(error.userMessage(), AppNotificationType.ERROR),
+                        ),
+                    )
                 }
         }
     }

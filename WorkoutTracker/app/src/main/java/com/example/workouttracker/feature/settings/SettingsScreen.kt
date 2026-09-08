@@ -9,18 +9,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,12 +24,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.workouttracker.R
 import com.example.workouttracker.core.model.WeightsUnit
@@ -77,11 +70,13 @@ fun SettingsScreen(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                uiState.feedbackMessage?.let { message ->
-                    MessageCard(message = message, isError = false)
-                }
                 uiState.errorMessage?.let { message ->
-                    MessageCard(message = message, isError = true)
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
 
                 SettingsSectionCard(
@@ -241,19 +236,17 @@ private fun DriveSettingsCard(
         title = "Google Drive Backup",
         supportingText = "Keep an optional copy of your complete workout database in Drive.",
     ) {
-        //TODO: Make this a flash notification not constant, and user-friendly errors
-        BackupStatus(state)
-        if (state is BackupConnectionState.Error) {
-            Text(
-                text = state.message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-
         // Show either connected or disconnected button based on state
         // Only show options to back up or restore when connected
-        if (connected) {
+        if (busy) {
+            ActionButton(
+                text = state.operationLabel(),
+                onClick = {},
+                enabled = false,
+                onCard = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else if (connected) {
                 DestructiveButton(
                     text = "Disconnect Google Drive",
                     onClick = onSignInOrOut,
@@ -292,98 +285,16 @@ private fun DriveSettingsCard(
     }
 }
 
-// Display the current Drive status and a progress indicator for active operations
-@Composable
-private fun BackupStatus(state: BackupConnectionState) {
-    val containerColor = when (state) {
-        BackupConnectionState.Connected -> MaterialTheme.colorScheme.tertiaryContainer
-        is BackupConnectionState.Error -> MaterialTheme.colorScheme.errorContainer
-        BackupConnectionState.Authorizing,
-        BackupConnectionState.Uploading,
-        BackupConnectionState.Restoring,
-        -> MaterialTheme.colorScheme.secondaryContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
-    }
-    val contentColor = when (state) {
-        BackupConnectionState.Connected -> MaterialTheme.colorScheme.onTertiaryContainer
-        is BackupConnectionState.Error -> MaterialTheme.colorScheme.onErrorContainer
-        BackupConnectionState.Authorizing,
-        BackupConnectionState.Uploading,
-        BackupConnectionState.Restoring,
-        -> MaterialTheme.colorScheme.onSecondaryContainer
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-    Surface(
-        color = containerColor,
-        contentColor = contentColor,
-        shape = MaterialTheme.shapes.large,
-        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (state.isBusy()) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                    color = contentColor,
-                )
-            }
-            Text(
-                text = state.statusLabel(),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium,
-            )
-        }
-    }
-}
-
-// Display a success or error message using the correct theme colours
-@Composable
-private fun MessageCard(message: String, isError: Boolean) {
-    val containerColor = if (isError) {
-        MaterialTheme.colorScheme.errorContainer
-    } else {
-        MaterialTheme.colorScheme.secondaryContainer
-    }
-    val contentColor = if (isError) {
-        MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        MaterialTheme.colorScheme.onSecondaryContainer
-    }
-
-    GenericCard(
-        colors = CardDefaults.cardColors(
-            containerColor = containerColor,
-            contentColor = contentColor,
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { liveRegion = LiveRegionMode.Polite },
-    ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-    }
-}
-
 // Return whether Google Drive is currently completing an operation
 private fun BackupConnectionState.isBusy(): Boolean =
     this == BackupConnectionState.Authorizing ||
         this == BackupConnectionState.Uploading ||
         this == BackupConnectionState.Restoring
 
-// Return a user-friendly label for each Google Drive state
-private fun BackupConnectionState.statusLabel(): String = when (this) {
-    BackupConnectionState.Unavailable -> "Google Play Services unavailable"
-    BackupConnectionState.SignedOut -> "Not connected"
+// Describe the active Drive operation without displaying a permanent status bubble
+private fun BackupConnectionState.operationLabel(): String = when (this) {
     BackupConnectionState.Authorizing -> "Connecting…"
-    BackupConnectionState.Connected -> "Connected"
-    BackupConnectionState.Uploading -> "Uploading backup…"
-    BackupConnectionState.Restoring -> "Restoring backup…"
-    is BackupConnectionState.Error -> "Connection error"
+    BackupConnectionState.Uploading -> "Backing up…"
+    BackupConnectionState.Restoring -> "Restoring…"
+    else -> "Working…"
 }

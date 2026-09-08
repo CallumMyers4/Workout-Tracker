@@ -2,6 +2,7 @@ package com.example.workouttracker.ui
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -41,6 +43,7 @@ import com.example.workouttracker.feature.goals.GoalsViewModel
 import com.example.workouttracker.feature.settings.ExerciseLibraryDialog
 import com.example.workouttracker.feature.settings.SettingsScreen
 import com.example.workouttracker.feature.settings.SettingsViewModel
+import com.example.workouttracker.feature.settings.SettingsEvent
 import com.example.workouttracker.feature.workoutdetail.WorkoutDetailEvent
 import com.example.workouttracker.feature.workoutdetail.WorkoutDetailScreen
 import com.example.workouttracker.feature.workoutdetail.WorkoutDetailViewModel
@@ -51,6 +54,8 @@ import com.example.workouttracker.feature.workoutlist.WorkoutListScreen
 import com.example.workouttracker.feature.workoutlist.WorkoutListViewModel
 import com.example.workouttracker.navigation.AppRoute
 import com.example.workouttracker.ui.theme.BottomNavigationButton
+import com.example.workouttracker.ui.theme.NotificationPopupHost
+import com.example.workouttracker.ui.theme.rememberNotificationController
 
 // Create the navigation graph and connect each page to its ViewModel
 @Composable
@@ -60,11 +65,34 @@ fun WorkoutTrackerApp(
     startDestination: AppRoute = AppRoute.WorkoutList,
 ) {
     val navController = rememberNavController()
+    val notificationController = rememberNotificationController()
     // Observe the selected unit once and share it with every weight-based screen
     val preferences by container.preferencesRepository.preferences.collectAsStateWithLifecycle(
         initialValue = AppPreferences(),
     )
     var pendingTabRoute by remember { mutableStateOf<AppRoute?>(null) }
+    var workoutRefreshKey by remember { mutableLongStateOf(0L) }
+    // Keep Settings operations alive when the user navigates to another page
+    val settingsModel: SettingsViewModel = viewModel(
+        factory = viewModelFactory {
+            initializer {
+                SettingsViewModel(
+                    container.preferencesRepository,
+                    container.exerciseRepository,
+                    container.backupRepository,
+                )
+            }
+        },
+    )
+    // Handle Drive and exercise results independently from the Settings destination
+    LaunchedEffect(settingsModel) {
+        settingsModel.events.collect { event ->
+            when (event) {
+                is SettingsEvent.Notify -> notificationController.show(event.notification)
+                SettingsEvent.DataRestored -> workoutRefreshKey++
+            }
+        }
+    }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
@@ -74,11 +102,17 @@ fun WorkoutTrackerApp(
             )
         },
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = startDestination,
-            modifier = Modifier.padding(innerPadding),
+        // Use the Scaffold content boundary to position notifications above navigation
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
         ) {
+            NavHost(
+                navController = navController,
+                startDestination = startDestination,
+                modifier = Modifier.fillMaxSize(),
+            ) {
             // Create the home workout list page
             composable<AppRoute.WorkoutList> {
                 val model: WorkoutListViewModel = viewModel(
@@ -92,6 +126,10 @@ fun WorkoutTrackerApp(
                     },
                 )
                 val state by model.uiState.collectAsStateWithLifecycle()
+                // Reload retained Home data after Settings restores the database
+                LaunchedEffect(workoutRefreshKey) {
+                    if (workoutRefreshKey > 0L) model.refresh()
+                }
                 WorkoutListScreen(
                     uiState = state,
                     onSearchChanged = model::onSearchChanged,
@@ -121,11 +159,14 @@ fun WorkoutTrackerApp(
                 // Return to Home after the displayed workout is deleted
                 LaunchedEffect(model) {
                     model.events.collect { event ->
-                        if (event == WorkoutDetailEvent.Deleted) {
-                            navController.navigate(AppRoute.WorkoutList) {
-                                popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
-                                launchSingleTop = true
+                        when (event) {
+                            WorkoutDetailEvent.Deleted -> {
+                                navController.navigate(AppRoute.WorkoutList) {
+                                    popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
+                                    launchSingleTop = true
+                                }
                             }
+                            is WorkoutDetailEvent.Notify -> notificationController.show(event.notification)
                         }
                     }
                 }
@@ -156,6 +197,7 @@ fun WorkoutTrackerApp(
                     isEditing = false,
                     onBack = { navController.popBackStack() },
                     onSaved = {},
+                    onNotification = notificationController::show,
                 )
             }
             // Draw an existing-workout editor within Home
@@ -173,6 +215,7 @@ fun WorkoutTrackerApp(
                     isEditing = true,
                     onBack = { returnToDetails(route.workoutId) },
                     onSaved = returnToDetails,
+                    onNotification = notificationController::show,
                     tabExitRequested = pendingTabRoute != null,
                     onCancelTabExit = { pendingTabRoute = null },
                     onConfirmTabExit = {
@@ -214,41 +257,34 @@ fun WorkoutTrackerApp(
             }
             // Create the settings page and its exercise library dialog
             composable<AppRoute.Settings> {
-                val model: SettingsViewModel = viewModel(
-                    factory = viewModelFactory {
-                        initializer {
-                            SettingsViewModel(
-                                container.preferencesRepository,
-                                container.exerciseRepository,
-                                container.backupRepository,
-                            )
-                        }
-                    },
-                )
-                val state by model.uiState.collectAsStateWithLifecycle()
+                val state by settingsModel.uiState.collectAsStateWithLifecycle()
                 SettingsScreen(
                     uiState = state,
-                    onThemeChanged = model::setDarkTheme,
-                    onWeightsUnitChanged = model::setWeightsUnit,
-                    onManageExercises = model::showExerciseLibrary,
-                    onSignInOrOut = model::signInOrOut,
-                    onRequestBackup = model::requestBackup,
-                    onRequestRestore = model::requestRestore,
-                    onDismissConfirmation = model::dismissConfirmation,
-                    onConfirmBackup = model::confirmBackup,
-                    onConfirmRestore = model::confirmRestore,
+                    onThemeChanged = settingsModel::setDarkTheme,
+                    onWeightsUnitChanged = settingsModel::setWeightsUnit,
+                    onManageExercises = settingsModel::showExerciseLibrary,
+                    onSignInOrOut = settingsModel::signInOrOut,
+                    onRequestBackup = settingsModel::requestBackup,
+                    onRequestRestore = settingsModel::requestRestore,
+                    onDismissConfirmation = settingsModel::dismissConfirmation,
+                    onConfirmBackup = settingsModel::confirmBackup,
+                    onConfirmRestore = settingsModel::confirmRestore,
                 )
                 if (state.isExerciseLibraryVisible) {
                     ExerciseLibraryDialog(
                         exercises = state.exercises,
-                        onAdd = model::addExercise,
-                        onRename = model::renameExercise,
-                        onDelete = model::deleteExercise,
-                        onCombine = model::combineExercises,
-                        onDismiss = model::hideExerciseLibrary,
+                        onAdd = settingsModel::addExercise,
+                        onRename = settingsModel::renameExercise,
+                        onDelete = settingsModel::deleteExercise,
+                        onCombine = settingsModel::combineExercises,
+                        onDismiss = settingsModel::hideExerciseLibrary,
+                        notificationController = notificationController,
                     )
                 }
             }
+            }
+            // Keep action results visible across navigation with a small gap above the bar
+            NotificationPopupHost(controller = notificationController)
         }
     }
 }
@@ -261,6 +297,7 @@ private fun WorkoutEditorDestination(
     isEditing: Boolean,
     onBack: () -> Unit,
     onSaved: (Long) -> Unit,
+    onNotification: (com.example.workouttracker.core.model.AppNotification) -> Unit,
     tabExitRequested: Boolean = false,
     onCancelTabExit: () -> Unit = {},
     onConfirmTabExit: () -> Unit = {},
@@ -284,7 +321,10 @@ private fun WorkoutEditorDestination(
     }
     LaunchedEffect(model) {
         model.events.collect { event ->
-            if (event is WorkoutEditorEvent.Saved) onSaved(event.workoutId)
+            when (event) {
+                is WorkoutEditorEvent.Saved -> onSaved(event.workoutId)
+                is WorkoutEditorEvent.Notify -> onNotification(event.notification)
+            }
         }
     }
     WorkoutEditorScreen(

@@ -7,8 +7,8 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.AuthorizationResult
+import com.google.android.gms.auth.api.identity.ClearTokenRequest
 import com.google.android.gms.auth.api.identity.Identity
-import com.google.android.gms.auth.api.identity.RevokeAccessRequest
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.Scopes
 import com.google.android.gms.common.api.ApiException
@@ -18,6 +18,11 @@ import com.google.android.gms.tasks.Task
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 
 // Requirements for obtaining and revoking Google Drive authorization
 interface GoogleAuthorizationGateway {
@@ -68,17 +73,35 @@ class AndroidGoogleAuthorizationGateway(
 
     // Revoke access for the currently authorized Google account
     override suspend fun revoke() {
-        val result = latestResult ?: runCatching { requestAuthorization(false) }.getOrNull()
-        val account = result?.toGoogleSignInAccount()?.account
-        if (account != null) {
-            client.revokeAccess(
-                RevokeAccessRequest.builder()
-                    .setAccount(account)
-                    .setScopes(scopes)
-                    .build(),
-            ).await()
+        val result = latestResult ?: requestAuthorization(allowUserInteraction = false)
+        val token = requireNotNull(result.accessToken) {
+            "Google Drive did not return an access token to revoke."
         }
+        revokeToken(token)
+        // Remove the revoked access token from Google's local cache as well
+        client.clearToken(
+            ClearTokenRequest.builder().setToken(token).build(),
+        ).await()
         latestResult = null
+    }
+
+    // Revoke the OAuth grant without depending on an account in AuthorizationResult
+    private suspend fun revokeToken(token: String) = withContext(Dispatchers.IO) {
+        val connection = URL(GOOGLE_REVOKE_URL).openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 30_000
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            val body = "token=${URLEncoder.encode(token, Charsets.UTF_8.name())}"
+            connection.outputStream.bufferedWriter().use { it.write(body) }
+            check(connection.responseCode in 200..299) {
+                "Google Drive access could not be revoked (HTTP ${connection.responseCode})."
+            }
+        } finally {
+            connection.disconnect()
+        }
     }
 
     // Check for existing Drive access without opening a user interface
@@ -139,6 +162,9 @@ class AndroidGoogleAuthorizationGateway(
         throw IllegalStateException("Google Drive authorization did not return a result.")
     }
 }
+
+// Google endpoint for revoking an OAuth access token and its associated grant
+private const val GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 
 // Convert Google Play Services status codes into user-friendly messages
 private fun Throwable.asReadableAuthorizationError(): Throwable {

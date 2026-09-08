@@ -6,6 +6,8 @@ import com.example.workouttracker.core.model.WorkoutFilter
 import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.core.model.WorkoutGrouping
 import com.example.workouttracker.core.model.WorkoutSort
+import com.example.workouttracker.core.model.AppNotification
+import com.example.workouttracker.core.model.AppNotificationType
 import com.example.workouttracker.domain.repository.BackupRepository
 import com.example.workouttracker.domain.repository.ExerciseRepository
 import com.example.workouttracker.domain.repository.PreferencesRepository
@@ -15,6 +17,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import com.example.workouttracker.domain.repository.BackupConnectionState
 
@@ -26,6 +31,8 @@ class SettingsViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
+    private val _events = MutableSharedFlow<SettingsEvent>(extraBufferCapacity = 1)
+    val events: SharedFlow<SettingsEvent> = _events.asSharedFlow()
 
     // Observe preference, exercise library, and Drive changes together
     init {
@@ -71,11 +78,7 @@ class SettingsViewModel(
 
     // Reset all saved preferences to their default values
     fun resetPreferences() {
-        viewModelScope.launch {
-            runCatching { preferencesRepository.reset() }
-                .onSuccess { _uiState.update { it.copy(feedbackMessage = "Preferences reset.") } }
-                .onFailure { error -> _uiState.update { it.copy(errorMessage = error.userMessage()) } }
-        }
+        launchOperation("Preferences reset.") { preferencesRepository.reset() }
     }
 
     // Open the exercise library dialog
@@ -95,7 +98,7 @@ class SettingsViewModel(
             _uiState.update { it.copy(errorMessage = "Exercise name cannot be blank.") }
             return
         }
-        launchOperation { exerciseRepository.addExercise(cleanName) }
+        launchOperation("Exercise added.") { exerciseRepository.addExercise(cleanName) }
     }
 
     // Rename an exercise or ask to combine it when the new name already exists
@@ -118,13 +121,15 @@ class SettingsViewModel(
                 )
             }
         } else {
-            launchOperation { exerciseRepository.renameExercise(exerciseId, cleanName) }
+            launchOperation("Exercise renamed.") {
+                exerciseRepository.renameExercise(exerciseId, cleanName)
+            }
         }
     }
 
     // Delete an exercise when it has no saved workout history
     fun deleteExercise(exerciseId: Long) {
-        launchOperation { exerciseRepository.deleteExercise(exerciseId) }
+        launchOperation("Exercise deleted.") { exerciseRepository.deleteExercise(exerciseId) }
     }
 
     // Move workout history into the selected target exercise
@@ -133,7 +138,7 @@ class SettingsViewModel(
         if (confirmation != null &&
             (confirmation.sourceId != sourceExerciseId || confirmation.targetId != targetExerciseId)
         ) return
-        launchOperation {
+        launchOperation("Exercises combined.") {
             exerciseRepository.combineExercises(sourceExerciseId, targetExerciseId)
             _uiState.update { it.copy(exerciseDialog = null) }
         }
@@ -143,14 +148,17 @@ class SettingsViewModel(
     fun signInOrOut() {
         if (_uiState.value.backupState.isBusy()) return
         viewModelScope.launch {
+            val wasConnected = _uiState.value.backupState == BackupConnectionState.Connected
             runCatching {
                 when (_uiState.value.backupState) {
                     BackupConnectionState.Connected -> backupRepository.signOut()
                     BackupConnectionState.SignedOut,
                     is BackupConnectionState.Error -> backupRepository.signIn()
-                    else -> Unit
+                    else -> return@launch
                 }
-            }.onFailure { error -> _uiState.update { it.copy(errorMessage = error.userMessage()) } }
+            }.onSuccess {
+                notifySuccess(if (wasConnected) "Google Drive disconnected." else "Google Drive connected.")
+            }.onFailure(::notifyError)
         }
     }
 
@@ -166,7 +174,8 @@ class SettingsViewModel(
         _uiState.update { it.copy(showBackupConfirmation = false) }
         viewModelScope.launch {
             runCatching { backupRepository.backup() }
-                .onFailure { error -> _uiState.update { it.copy(errorMessage = error.userMessage()) } }
+                .onSuccess { notifySuccess("Backup completed.") }
+                .onFailure(::notifyError)
         }
     }
 
@@ -182,8 +191,11 @@ class SettingsViewModel(
         _uiState.update { it.copy(showRestoreConfirmation = false) }
         viewModelScope.launch {
             runCatching { backupRepository.restore() }
-                .onSuccess { _uiState.update { it.copy(feedbackMessage = "Backup restored.") } }
-                .onFailure { error -> _uiState.update { it.copy(errorMessage = error.userMessage()) } }
+                .onSuccess {
+                    notifySuccess("Backup restored.")
+                    _events.emit(SettingsEvent.DataRestored)
+                }
+                .onFailure(::notifyError)
         }
     }
 
@@ -198,16 +210,31 @@ class SettingsViewModel(
     private fun updatePreferences(transform: (com.example.workouttracker.core.model.AppPreferences) -> com.example.workouttracker.core.model.AppPreferences) {
         viewModelScope.launch {
             runCatching { preferencesRepository.update(transform) }
-                .onFailure { error -> _uiState.update { it.copy(errorMessage = error.userMessage()) } }
+                .onFailure(::notifyError)
         }
     }
 
     // Run an exercise library operation and display any error
-    private fun launchOperation(block: suspend () -> Unit) {
+    private fun launchOperation(successMessage: String, block: suspend () -> Unit) {
         viewModelScope.launch {
             runCatching { block() }
-                .onFailure { error -> _uiState.update { it.copy(errorMessage = error.userMessage()) } }
+                .onSuccess { notifySuccess(successMessage) }
+                .onFailure(::notifyError)
         }
+    }
+
+    // Emit a green one-time result without retaining it in settings state
+    private fun notifySuccess(message: String) {
+        _events.tryEmit(
+            SettingsEvent.Notify(AppNotification(message, AppNotificationType.SUCCESS)),
+        )
+    }
+
+    // Emit a red one-time result with a user-friendly failure message
+    private fun notifyError(error: Throwable) {
+        _events.tryEmit(
+            SettingsEvent.Notify(AppNotification(error.userMessage(), AppNotificationType.ERROR)),
+        )
     }
 
     // Return whether a Google Drive operation is currently running
