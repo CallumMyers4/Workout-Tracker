@@ -384,7 +384,7 @@ class WorkoutEditorViewModel(
                     }
                 }
                 .onFailure { error ->
-                    _uiState.update { it.copy(isSaving = false) }
+                    _uiState.update { it.copy(isSaving = false, errorMessage = error.userMessage()) }
                     _events.emit(
                         WorkoutEditorEvent.Notify(
                             AppNotification(error.userMessage(), AppNotificationType.ERROR),

@@ -39,6 +39,6 @@ enum class NoteScope : Serializable {
 sealed interface WorkoutEditorEvent {
     // Tell Home to return to the updated workout after an edit is saved
     data class Saved(val workoutId: Long) : WorkoutEditorEvent
-    // Display the result of a save without retaining it in editor state
+    // Display an immediate save notification; failures also remain in editor state
     data class Notify(val notification: AppNotification) : WorkoutEditorEvent
 }
