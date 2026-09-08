@@ -12,6 +12,7 @@ import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.core.model.WorkoutFilter
 import com.example.workouttracker.core.model.WorkoutGrouping
 import com.example.workouttracker.core.model.WorkoutSort
+import com.example.workouttracker.core.model.WorkoutTypeFilter
 import com.example.workouttracker.domain.repository.PreferencesRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -55,7 +56,8 @@ class DataStorePreferencesRepository(context: Context) : PreferencesRepository {
         filter = values[FILTER].toEnumOrDefault(WorkoutFilter.ALL_TIME),
         sort = values[SORT].toEnumOrDefault(WorkoutSort.NEWEST),
         grouping = values[GROUPING].toEnumOrDefault(WorkoutGrouping.NONE),
-        weightsUnit = values[WEIGHTS_UNIT].toEnumOrDefault(WeightsUnit.METRIC)
+        weightsUnit = values[WEIGHTS_UNIT].toEnumOrDefault(WeightsUnit.METRIC),
+        workoutTypeFilter = values[TYPE_FILTER].toEnumOrDefault(WorkoutTypeFilter.ALL),
     )
 
     // Write all preference model values into DataStore
@@ -67,6 +69,7 @@ class DataStorePreferencesRepository(context: Context) : PreferencesRepository {
         values[SORT] = preferences.sort.name
         values[GROUPING] = preferences.grouping.name
         values[WEIGHTS_UNIT] = preferences.weightsUnit.name
+        values[TYPE_FILTER] = preferences.workoutTypeFilter.name
     }
 
     // Return a stored enum value or its default when it is missing or no longer exists
@@ -80,5 +83,6 @@ class DataStorePreferencesRepository(context: Context) : PreferencesRepository {
         val SORT = stringPreferencesKey("workout_sort")
         val GROUPING = stringPreferencesKey("workout_grouping")
         val WEIGHTS_UNIT = stringPreferencesKey("weights_unit");
+        val TYPE_FILTER = stringPreferencesKey("workout_type_filter")
     }
 }

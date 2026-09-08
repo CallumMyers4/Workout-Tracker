@@ -12,6 +12,14 @@ data class ExerciseSet(
     val weightKg: Double,
 )
 
+enum class WorkoutType { STRENGTH, CARDIO }
+enum class ExerciseType { STRENGTH, CARDIO }
+
+data class CardioEntry(
+    val durationSeconds: Long,
+    val distanceMeters: Double? = null,
+)
+
 // Exercise within a workout
 data class WorkoutExercise(
     val id: Long = 0,
@@ -19,6 +27,7 @@ data class WorkoutExercise(
     val name: String,
     val position: Int,
     val sets: List<ExerciseSet>,
+    val cardioEntry: CardioEntry? = null,
 )
 
 // Full workout with all exercises and sets
@@ -27,6 +36,7 @@ data class Workout(
     val name: String,
     val date: LocalDate,
     val exercises: List<WorkoutExercise>,
+    val type: WorkoutType = WorkoutType.STRENGTH,
 )
 
 // Short visual description of a workout for the home screen
@@ -36,6 +46,9 @@ data class WorkoutSummary(
     val date: LocalDate?,
     val exerciseCount: Int,
     val exerciseNames: List<String>,
+    val type: WorkoutType = WorkoutType.STRENGTH,
+    val totalDurationSeconds: Long = 0,
+    val totalDistanceMeters: Double = 0.0,
 )
 
 // Workout whilst it is being edited, so its text values have not yet been validated
@@ -45,6 +58,7 @@ data class WorkoutDraft(
     val name: String = "",
     val date: LocalDate = LocalDate.now(),
     val exercises: List<WorkoutExerciseDraft> = listOf(WorkoutExerciseDraft()),
+    val type: WorkoutType = WorkoutType.STRENGTH,
 ) : Serializable
 
 // Full exercise whilst being edited
@@ -55,6 +69,7 @@ data class WorkoutExerciseDraft(
     val name: String = "",
     val expanded: Boolean = true,
     val sets: List<ExerciseSetDraft> = listOf(ExerciseSetDraft()),
+    val cardioEntry: CardioEntryDraft = CardioEntryDraft(),
 ) : Serializable
 
 // Set within the exercise before being saved
@@ -63,3 +78,28 @@ data class ExerciseSetDraft(
     val reps: String = "",
     val weightKg: String = "",
 ) : Serializable
+
+data class CardioEntryDraft(
+    val minutes: String = "00",
+    val seconds: String = "00",
+    val distanceMeters: String = "",
+) : Serializable
+
+fun CardioEntryDraft.durationSecondsOrNull(): Long? {
+    if (minutes.any { !it.isDigit() } || seconds.any { !it.isDigit() }) return null
+    val minuteValue = minutes.ifBlank { "0" }.toLongOrNull() ?: return null
+    val secondValue = seconds.ifBlank { "0" }.toLongOrNull() ?: return null
+    if (secondValue !in 0..59) return null
+    return runCatching {
+        Math.addExact(Math.multiplyExact(minuteValue, 60), secondValue)
+    }
+        .getOrNull()
+}
+
+fun Long.formatDuration(): String {
+    val hours = this / 3600
+    val minutes = (this % 3600) / 60
+    val seconds = this % 60
+    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds)
+    else "%d:%02d".format(minutes, seconds)
+}

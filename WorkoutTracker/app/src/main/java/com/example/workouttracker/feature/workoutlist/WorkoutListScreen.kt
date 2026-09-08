@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import com.example.workouttracker.core.model.WorkoutFilter
 import com.example.workouttracker.core.model.WorkoutGrouping
 import com.example.workouttracker.core.model.WorkoutSort
+import com.example.workouttracker.core.model.WorkoutTypeFilter
+import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.ui.theme.GenericDropdown
 import com.example.workouttracker.ui.theme.EmptyStateTextStyle
 import com.example.workouttracker.ui.theme.PageTitle
@@ -33,11 +35,13 @@ fun WorkoutListScreen(
     uiState: WorkoutListUiState,
     onSearchChanged: (String) -> Unit,
     onFilterChanged: (WorkoutFilter) -> Unit,
+    onTypeFilterChanged: (WorkoutTypeFilter) -> Unit,
     onSortChanged: (WorkoutSort) -> Unit,
     onGroupingChanged: (WorkoutGrouping) -> Unit,
     onGroupToggled: (String) -> Unit,
     onWorkoutSelected: (Long) -> Unit,
     onLoadMore: () -> Unit,
+    weightsUnit: WeightsUnit = WeightsUnit.METRIC,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -87,6 +91,14 @@ fun WorkoutListScreen(
                 modifier = Modifier.weight(1f),
             )
         }
+        GenericDropdown(
+            title = "Type",
+            values = WorkoutTypeFilter.entries,
+            selected = uiState.typeFilter,
+            label = { it.displayName() },
+            onSelected = onTypeFilterChanged,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        )
         if (uiState.totalItemCount > 0) {
             Text(
                 "Showing ${uiState.loadedItemCount} of ${uiState.totalItemCount} workouts",
@@ -135,6 +147,7 @@ fun WorkoutListScreen(
                                 workout = workout,
                                 onOpen = { onWorkoutSelected(workout.id) },
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                weightsUnit = weightsUnit,
                             )
                         }
                     }

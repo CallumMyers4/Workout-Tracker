@@ -3,6 +3,7 @@ package com.example.workouttracker.feature.settings
 import com.example.workouttracker.core.model.AppNotificationType
 import com.example.workouttracker.core.model.AppPreferences
 import com.example.workouttracker.core.model.CatalogExercise
+import com.example.workouttracker.core.model.ExerciseType
 import com.example.workouttracker.domain.repository.BackupConnectionState
 import com.example.workouttracker.domain.repository.BackupRepository
 import com.example.workouttracker.domain.repository.ExerciseRepository
@@ -176,7 +177,7 @@ class SettingsViewModelTest {
         var deletedId: Long? = null
 
         override fun observeCatalog(): Flow<List<CatalogExercise>> = catalog
-        override suspend fun addExercise(name: String) = 2L
+        override suspend fun addExercise(name: String, type: ExerciseType) = 2L
         override suspend fun renameExercise(exerciseId: Long, newName: String) {
             renamedTo = newName
         }

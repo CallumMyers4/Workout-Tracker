@@ -16,9 +16,12 @@ import androidx.compose.ui.unit.dp
 import com.example.workouttracker.R
 import com.example.workouttracker.core.model.ExerciseProgress
 import com.example.workouttracker.core.model.WeightsUnit
+import com.example.workouttracker.core.model.CardioProgress
+import com.example.workouttracker.core.model.formatDuration
 import com.example.workouttracker.ui.theme.ActionButton
 import com.example.workouttracker.ui.theme.GenericCard
 import java.text.NumberFormat
+import kotlin.math.roundToLong
 
 @Composable
 // Create a new card for a goal
@@ -116,4 +119,61 @@ private fun Double.asWeight(unit: WeightsUnit): String =
 private val PERCENT_FORMAT = NumberFormat.getNumberInstance().apply {
     minimumFractionDigits = 1
     maximumFractionDigits = 1
+}
+
+@Composable
+fun CardioGoalCard(
+    progress: CardioProgress,
+    unit: WeightsUnit,
+    onUpdateGoal: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    GenericCard(title = progress.exercise.name, modifier = modifier) {
+        val goalDistance = progress.exercise.cardioGoalDistanceMeters
+        val goalDuration = progress.exercise.cardioGoalDurationSeconds
+        HorizontalDivider(thickness = 2.dp)
+        DataRow("Goal: ", if (goalDistance != null && goalDuration != null) {
+            formatPace(goalDuration.toDouble() / goalDistance, unit)
+        } else "Not set")
+        HorizontalDivider(thickness = 2.dp)
+        DataRow("Latest: ", progress.latest?.let { entry ->
+            entry.distanceMeters?.let { distance ->
+                "${unit.formatMeters(distance)} ${unit.distanceSymbol} in ${entry.durationSeconds.formatDuration()}"
+            }
+        } ?: "No distance recorded")
+        HorizontalDivider(thickness = 2.dp)
+        DataRow("Longest Distance: ", progress.longestDistanceMeters
+            ?.let { "${unit.formatMeters(it)} ${unit.distanceSymbol}" } ?: "No distance recorded")
+        HorizontalDivider(thickness = 2.dp)
+        DataRow("Best Pace: ", progress.fastestPaceSecondsPerMeter
+            ?.let { formatPace(it, unit) } ?: "No distance recorded")
+        HorizontalDivider(thickness = 2.dp)
+        if (goalDistance != null && goalDuration != null) {
+            DataRow(
+                "Progress: ",
+                progress.percentage?.let { PERCENT_FORMAT.format(it) + "%" }
+                    ?: "No qualifying entry",
+            )
+            progress.percentage?.let { percentage ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LinearProgressIndicator(
+                        progress = { percentage.toFloat() / 100f },
+                        modifier = Modifier.weight(2f),
+                    )
+                    Icon(
+                        painter = painterResource(R.drawable.icon_medal),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            HorizontalDivider(thickness = 2.dp)
+        }
+        ActionButton(onClick = onUpdateGoal, text = "Update Goal", onCard = true)
+    }
+}
+
+private fun formatPace(secondsPerMeter: Double, unit: WeightsUnit): String {
+    val unitDistanceMeters = if (unit == WeightsUnit.METRIC) 1000.0 else 1609.344
+    return (secondsPerMeter * unitDistanceMeters).roundToLong().formatDuration() + "/${unit.distanceSymbol}"
 }

@@ -8,6 +8,8 @@ enum class WorkoutFilter {
     THIS_YEAR,
 }
 
+enum class WorkoutTypeFilter { ALL, STRENGTH, CARDIO }
+
 // Order to list workouts in
 enum class WorkoutSort {
     NEWEST,

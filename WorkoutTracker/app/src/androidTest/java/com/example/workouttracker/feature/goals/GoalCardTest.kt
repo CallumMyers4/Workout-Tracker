@@ -11,8 +11,12 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import com.example.workouttracker.core.model.BestSet
+import com.example.workouttracker.core.model.CardioEntry
+import com.example.workouttracker.core.model.CardioProgress
 import com.example.workouttracker.core.model.CatalogExercise
+import com.example.workouttracker.core.model.ExerciseType
 import com.example.workouttracker.core.model.ExerciseProgress
+import com.example.workouttracker.core.model.WeightsUnit
 import org.junit.Rule
 import org.junit.Test
 
@@ -65,6 +69,62 @@ class GoalCardTest {
         progressIndicator().assertRangeInfoEquals(
             ProgressBarRangeInfo(current = 1f, range = 0f..1f),
         )
+    }
+
+    @Test
+    fun cardioCardShowsLatestDistancePaceGoalAndProgress() {
+        composeRule.setContent {
+            MaterialTheme {
+                CardioGoalCard(
+                    progress = CardioProgress(
+                        exercise = CatalogExercise(
+                            id = 2,
+                            name = "Cycling",
+                            type = ExerciseType.CARDIO,
+                            cardioGoalDistanceMeters = 5_000.0,
+                            cardioGoalDurationSeconds = 1_500,
+                        ),
+                        latest = CardioEntry(durationSeconds = 1_620, distanceMeters = 5_000.0),
+                        longestDistanceMeters = 10_000.0,
+                        fastestPaceSecondsPerMeter = 0.24,
+                        percentage = 120.0,
+                    ),
+                    unit = WeightsUnit.METRIC,
+                    onUpdateGoal = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("5 km in 27:00").assertIsDisplayed()
+        composeRule.onNodeWithText("10 km").assertIsDisplayed()
+        composeRule.onNodeWithText("4:00/km").assertIsDisplayed()
+        composeRule.onNodeWithText("5:00/km").assertIsDisplayed()
+        composeRule.onNodeWithText("120.0%").assertIsDisplayed()
+        progressIndicator().assertRangeInfoEquals(
+            ProgressBarRangeInfo(current = 1f, range = 0f..1f),
+        )
+    }
+
+    @Test
+    fun cardioCardWithoutGoalHidesProgressStateAndIndicator() {
+        composeRule.setContent {
+            MaterialTheme {
+                CardioGoalCard(
+                    progress = CardioProgress(
+                        exercise = CatalogExercise(
+                            id = 2,
+                            name = "Cycling",
+                            type = ExerciseType.CARDIO,
+                        ),
+                    ),
+                    unit = WeightsUnit.METRIC,
+                    onUpdateGoal = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Progress: ").assertDoesNotExist()
+        progressIndicators().assertCountEquals(0)
     }
 
     private fun showGoalCard(

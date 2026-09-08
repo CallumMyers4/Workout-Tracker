@@ -47,6 +47,8 @@ import com.example.workouttracker.core.model.ExerciseSetDraft
 import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.core.model.isValidWeightInput
 import com.example.workouttracker.core.model.WorkoutExerciseDraft
+import com.example.workouttracker.core.model.WorkoutType
+import com.example.workouttracker.core.model.durationSecondsOrNull
 import com.example.workouttracker.ui.theme.GenericButton
 import com.example.workouttracker.ui.theme.GenericCard
 
@@ -54,6 +56,7 @@ import com.example.workouttracker.ui.theme.GenericCard
 @Composable
 fun ExerciseEditorCard(
     exercise: WorkoutExerciseDraft,
+    exerciseType: WorkoutType = WorkoutType.STRENGTH,
     weightsUnit: WeightsUnit = WeightsUnit.METRIC,
     exerciseIndex: Int,
     catalog: List<CatalogExercise>,
@@ -64,6 +67,7 @@ fun ExerciseEditorCard(
     onRemove: () -> Unit,
     onAddSet: () -> Unit,
     onSetChanged: (Int, String, String) -> Unit,
+    onCardioEntryChanged: (String, String, String) -> Unit = { _, _, _ -> },
     onRemoveSet: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -89,7 +93,7 @@ fun ExerciseEditorCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(
+            if (exerciseType == WorkoutType.STRENGTH) IconButton(
                 onClick = onToggle,
                 modifier = Modifier
                     .padding()
@@ -119,7 +123,9 @@ fun ExerciseEditorCard(
             IconButton(
                 onClick = {
                     val hasContent = exercise.catalogExerciseId != null ||
-                            exercise.sets.any { it.reps.isNotBlank() || it.weightKg.isNotBlank() }
+                            exercise.sets.any { it.reps.isNotBlank() || it.weightKg.isNotBlank() } ||
+                            exercise.cardioEntry.minutes != "00" || exercise.cardioEntry.seconds != "00" ||
+                            exercise.cardioEntry.distanceMeters.isNotBlank()
                     if (hasContent) confirmExerciseRemoval = true else onRemove()
                 },
                 modifier = Modifier
@@ -131,7 +137,7 @@ fun ExerciseEditorCard(
                 )
             }
         }
-        Row(
+        if (exerciseType == WorkoutType.STRENGTH) Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -158,7 +164,21 @@ fun ExerciseEditorCard(
                 )
             }
         }
-        if (exercise.expanded) {
+        if (exerciseType == WorkoutType.CARDIO) {
+            CardioEditorRow(
+                entry = exercise.cardioEntry,
+                unit = weightsUnit,
+                onChanged = onCardioEntryChanged,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TextButton(
+                onClick = onOpenNote,
+                enabled = exercise.catalogExerciseId != null,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Notes", style = MaterialTheme.typography.displaySmall)
+            }
+        } else if (exercise.expanded) {
             // Display an editable row for each set when the exercise is expanded
             exercise.sets.forEachIndexed { setIndex, set ->
                 SetEditorRow(
@@ -271,7 +291,7 @@ fun ExerciseEditorCard(
         AlertDialog(
             onDismissRequest = { confirmExerciseRemoval = false },
             title = { Text("Remove exercise?") },
-            text = { Text("The exercise and its entered sets will be removed from this draft.") },
+            text = { Text("The exercise and its entered information will be removed from this draft.") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmExerciseRemoval = false
@@ -302,6 +322,61 @@ fun ExerciseEditorCard(
             },
         )
     }
+}
+
+@Composable
+private fun CardioEditorRow(
+    entry: com.example.workouttracker.core.model.CardioEntryDraft,
+    unit: WeightsUnit,
+    onChanged: (String, String, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val durationInvalid = entry.durationSecondsOrNull() == null
+    val distance = entry.distanceMeters.toDoubleOrNull()
+    val distanceInvalid = entry.distanceMeters.isNotEmpty() &&
+        (distance == null || !distance.isFinite() || distance <= 0.0)
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedTextField(
+                value = entry.minutes,
+                onValueChange = { value -> durationPart(entry.minutes, value)?.let { onChanged(it, entry.seconds, entry.distanceMeters) } },
+                label = { Text("mm") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = durationInvalid,
+                supportingText = if (durationInvalid) ({ Text("Required") }) else null,
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedTextField(
+                value = entry.seconds,
+                onValueChange = { value -> durationPart(entry.seconds, value, 2)?.let { onChanged(entry.minutes, it, entry.distanceMeters) } },
+                label = { Text("ss") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = durationInvalid,
+                supportingText = if (durationInvalid) ({ Text("0–59") }) else null,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        OutlinedTextField(
+            value = entry.distanceMeters,
+            onValueChange = { value -> if (value.isValidWeightInput()) onChanged(entry.minutes, entry.seconds, value) },
+            label = { Text("Distance (${unit.distanceSymbol})") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            isError = distanceInvalid,
+            supportingText = if (distanceInvalid) ({ Text("Positive or blank") }) else null,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+private fun durationPart(current: String, changed: String, maxLength: Int? = null): String? {
+    if (changed.any { !it.isDigit() }) return null
+    val withoutDefault = if (current == "00" && changed.startsWith("00") && changed.length > 2) {
+        changed.drop(2)
+    } else changed
+    return withoutDefault.takeIf { maxLength == null || it.length <= maxLength }
 }
 
 // Create one row for entering the repetitions and weight of a set

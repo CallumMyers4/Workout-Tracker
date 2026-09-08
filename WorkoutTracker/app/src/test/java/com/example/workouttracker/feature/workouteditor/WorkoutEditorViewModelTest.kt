@@ -70,6 +70,32 @@ class WorkoutEditorViewModelTest {
         assertNull(model.uiState.value.errorMessage)
     }
 
+    @Test
+    fun selectingTypeAndConfirmedBackReturnsToChooser() = runTest(dispatcher) {
+        val model = WorkoutEditorViewModel(
+            SavedStateHandle(), DeferredWorkoutRepository(), EmptyExerciseRepository(), WorkoutValidator(),
+        )
+        model.selectWorkoutType(WorkoutType.CARDIO)
+        assertEquals(WorkoutType.CARDIO, model.uiState.value.selectedType)
+        model.updateWorkoutName("Ride")
+        model.requestBackToChooser()
+        assertTrue(model.uiState.value.showClearConfirmation)
+        model.confirmClear()
+        assertNull(model.uiState.value.selectedType)
+        assertFalse(model.uiState.value.isDirty)
+    }
+
+    @Test
+    fun blankBackReturnsToChooserWithoutConfirmation() = runTest(dispatcher) {
+        val model = WorkoutEditorViewModel(
+            SavedStateHandle(), DeferredWorkoutRepository(), EmptyExerciseRepository(), WorkoutValidator(),
+        )
+        model.selectWorkoutType(WorkoutType.STRENGTH)
+        model.requestBackToChooser()
+        assertNull(model.uiState.value.selectedType)
+        assertFalse(model.uiState.value.showClearConfirmation)
+    }
+
     private class DeferredWorkoutRepository : WorkoutRepository {
         var result = CompletableDeferred<Long>()
         override suspend fun saveWorkout(draft: WorkoutDraft): Long = result.await()
@@ -85,7 +111,7 @@ class WorkoutEditorViewModelTest {
 
     private class EmptyExerciseRepository : ExerciseRepository {
         override fun observeCatalog(): Flow<List<CatalogExercise>> = flowOf(emptyList())
-        override suspend fun addExercise(name: String): Long = 1L
+        override suspend fun addExercise(name: String, type: ExerciseType): Long = 1L
         override suspend fun renameExercise(exerciseId: Long, newName: String) = Unit
         override suspend fun deleteExercise(exerciseId: Long) = Unit
         override suspend fun combineExercises(sourceExerciseId: Long, targetExerciseId: Long) = Unit

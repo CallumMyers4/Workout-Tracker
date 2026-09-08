@@ -5,6 +5,8 @@ import com.example.workouttracker.core.result.ValidationResult
 import com.example.workouttracker.core.result.WorkoutField
 import java.time.LocalDate
 import java.math.BigDecimal
+import com.example.workouttracker.core.model.WorkoutType
+import com.example.workouttracker.core.model.durationSecondsOrNull
 
 // Validate each section of a workout draft before it is saved
 class WorkoutValidator {
@@ -32,6 +34,20 @@ class WorkoutValidator {
                 return ValidationResult.Invalid(
                     "Select an exercise.", WorkoutField.EXERCISE, exerciseIndex,
                 )
+            }
+            if (draft.type == WorkoutType.CARDIO) {
+                val duration = exercise.cardioEntry.durationSecondsOrNull()
+                if (duration == null || duration <= 0) return ValidationResult.Invalid(
+                    "Enter a positive duration using the minutes and seconds fields.", WorkoutField.DURATION, exerciseIndex,
+                )
+                val distanceText = exercise.cardioEntry.distanceMeters
+                val distance = distanceText.toDoubleOrNull()
+                if (distanceText.isNotBlank() && (distance == null || !distance.isFinite() || distance <= 0.0)) {
+                    return ValidationResult.Invalid(
+                        "Distance must be a positive number or left blank.", WorkoutField.DISTANCE, exerciseIndex,
+                    )
+                }
+                return@forEachIndexed
             }
             if (exercise.sets.isEmpty()) {
                 return ValidationResult.Invalid(

@@ -1,6 +1,7 @@
 package com.example.workouttracker.domain.repository
 
 import com.example.workouttracker.core.model.CatalogExercise
+import com.example.workouttracker.core.model.ExerciseType
 import kotlinx.coroutines.flow.Flow
 
 // Requirements for classes that create an exercise in the catalog
@@ -9,7 +10,7 @@ interface ExerciseRepository {
     fun observeCatalog(): Flow<List<CatalogExercise>>
 
     // Add a new catalog exercise and return its ID
-    suspend fun addExercise(name: String): Long
+    suspend fun addExercise(name: String, type: ExerciseType = ExerciseType.STRENGTH): Long
 
     // Change the name of an existing exercise
     suspend fun renameExercise(exerciseId: Long, newName: String)

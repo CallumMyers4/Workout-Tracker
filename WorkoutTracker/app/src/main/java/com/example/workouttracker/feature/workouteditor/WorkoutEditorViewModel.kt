@@ -9,6 +9,9 @@ import com.example.workouttracker.core.model.WorkoutDraft
 import com.example.workouttracker.core.model.AppNotification
 import com.example.workouttracker.core.model.AppNotificationType
 import com.example.workouttracker.core.model.WorkoutExerciseDraft
+import com.example.workouttracker.core.model.WorkoutType
+import com.example.workouttracker.core.model.ExerciseType
+import com.example.workouttracker.core.model.CardioEntryDraft
 import com.example.workouttracker.core.model.WeightsUnit
 import com.example.workouttracker.core.result.ValidationResult
 import com.example.workouttracker.domain.repository.ExerciseRepository
@@ -41,6 +44,7 @@ class WorkoutEditorViewModel(
     private val _events = MutableSharedFlow<WorkoutEditorEvent>(extraBufferCapacity = 1)
     val events: SharedFlow<WorkoutEditorEvent> = _events.asSharedFlow()
     private var originalDraft = savedStateHandle.get<WorkoutDraft>(ORIGINAL_DRAFT_KEY)
+    private var fullCatalog = emptyList<com.example.workouttracker.core.model.CatalogExercise>()
     // Keep the exact persisted values separate from converted editor text
     private var originalKilogramDraft = savedStateHandle.get<WorkoutDraft>(ORIGINAL_KILOGRAM_DRAFT_KEY)
     // Restore the unit used by saved draft text so it can be converted safely
@@ -55,7 +59,7 @@ class WorkoutEditorViewModel(
         val workoutId = savedStateHandle.get<Long>("workoutId")
         if (restoredNote != null) _uiState.update { it.copy(noteEditor = restoredNote) }
         if (restoredDraft != null) {
-            _uiState.update { it.copy(draft = restoredDraft, isDirty = true) }
+            _uiState.update { it.copy(draft = restoredDraft, isDirty = true, selectedType = restoredDraft.type) }
         }
         if (workoutId != null &&
             (restoredDraft == null || originalDraft == null || originalKilogramDraft == null)
@@ -64,7 +68,8 @@ class WorkoutEditorViewModel(
                 runCatching { workoutRepository.observeWorkout(workoutId).filterNotNull().first() }
                     .onSuccess { workout ->
                         val kilogramDraft = workout.toKilogramDraft()
-                        val loadedDraft = kilogramDraft.convertWeights(WeightsUnit.METRIC, weightsUnit)
+                        val metricDraft = kilogramDraft.withCanonicalDistancesDisplayed()
+                        val loadedDraft = metricDraft.convertWeights(WeightsUnit.METRIC, weightsUnit)
                         originalKilogramDraft = kilogramDraft
                         savedStateHandle[ORIGINAL_KILOGRAM_DRAFT_KEY] = kilogramDraft
                         if (originalDraft == null) {
@@ -72,7 +77,10 @@ class WorkoutEditorViewModel(
                             savedStateHandle[ORIGINAL_DRAFT_KEY] = loadedDraft
                         }
                         if (restoredDraft == null) {
-                            _uiState.update { it.copy(draft = loadedDraft, isDirty = false) }
+                            _uiState.update { it.copy(
+                                draft = loadedDraft, isDirty = false, selectedType = loadedDraft.type,
+                                exerciseCatalog = fullCatalog.filter { exercise -> exercise.type.name == loadedDraft.type.name },
+                            ) }
                         }
                     }
                     .onFailure { error ->
@@ -85,10 +93,11 @@ class WorkoutEditorViewModel(
             exerciseRepository.observeCatalog()
                 .catch { error -> _uiState.update { it.copy(errorMessage = error.userMessage()) } }
                 .collect { catalog ->
+                    fullCatalog = catalog
                     val namesById = catalog.associate { it.id to it.name }
                     _uiState.update { state ->
                         state.copy(
-                            exerciseCatalog = catalog,
+                            exerciseCatalog = catalog.filter { it.type.name == state.draft.type.name },
                             draft = state.draft.copy(
                                 exercises = state.draft.exercises.map { row ->
                                     row.copy(name = row.catalogExerciseId?.let(namesById::get) ?: row.name)
@@ -118,6 +127,31 @@ class WorkoutEditorViewModel(
     // Update the name of the workout draft
     fun updateWorkoutName(name: String) {
         changeDraft { it.copy(name = name) }
+    }
+
+    fun selectWorkoutType(type: WorkoutType) {
+        val draft = WorkoutDraft(type = type)
+        savedStateHandle[DRAFT_KEY] = draft
+        _uiState.update { it.copy(
+            draft = draft, selectedType = type, isDirty = false,
+            exerciseCatalog = fullCatalog.filter { exercise -> exercise.type.name == type.name },
+        ) }
+    }
+
+    fun requestBackToChooser() {
+        val state = _uiState.value
+        if (state.isDirty && state.draft.hasMeaningfulContent()) {
+            _uiState.update { it.copy(showClearConfirmation = true, returnToChooserAfterClear = true) }
+        } else returnToChooser()
+    }
+
+    private fun returnToChooser() {
+        savedStateHandle.remove<WorkoutDraft>(DRAFT_KEY)
+        _uiState.update { it.copy(
+            draft = WorkoutDraft(), selectedType = null, isDirty = false,
+            showClearConfirmation = false, returnToChooserAfterClear = false,
+            validationResult = null, errorMessage = null,
+        ) }
     }
 
     // Update the date of the workout draft
@@ -158,7 +192,7 @@ class WorkoutEditorViewModel(
         val cleanName = name.trim()
         if (cleanName.isEmpty()) return
         viewModelScope.launch {
-            runCatching { exerciseRepository.addExercise(cleanName) }
+            runCatching { exerciseRepository.addExercise(cleanName, ExerciseType.valueOf(_uiState.value.draft.type.name)) }
                 .onSuccess { id ->
                     changeDraft { draft ->
                         draft.updateExercise(exerciseIndex) {
@@ -302,6 +336,14 @@ class WorkoutEditorViewModel(
         }
     }
 
+    fun updateCardioEntry(exerciseIndex: Int, minutes: String, seconds: String, distance: String) {
+        changeDraft { draft ->
+            draft.updateExercise(exerciseIndex) { exercise ->
+                exercise.copy(cardioEntry = CardioEntryDraft(minutes, seconds, distance))
+            }
+        }
+    }
+
     // Open the clear confirmation when the draft contains unsaved information
     fun requestClear() {
         val state = _uiState.value
@@ -313,14 +355,19 @@ class WorkoutEditorViewModel(
 
     // Close the clear workout confirmation
     fun cancelClear() {
-        _uiState.update { it.copy(showClearConfirmation = false) }
+        _uiState.update { it.copy(showClearConfirmation = false, returnToChooserAfterClear = false) }
     }
 
     // Reset the editor to a new blank workout
     fun confirmClear() {
         val editedWorkoutId = savedStateHandle.get<Long>("workoutId")
+        val shouldReturn = _uiState.value.returnToChooserAfterClear && editedWorkoutId == null
+        if (shouldReturn) {
+            returnToChooser()
+            return
+        }
         val clearedDraft = if (editedWorkoutId == null) {
-            WorkoutDraft(date = LocalDate.now())
+            WorkoutDraft(date = LocalDate.now(), type = _uiState.value.draft.type)
         } else {
             originalDraft ?: return
         }
@@ -332,6 +379,7 @@ class WorkoutEditorViewModel(
                 showClearConfirmation = false,
                 validationResult = null,
                 errorMessage = null,
+                returnToChooserAfterClear = false,
             )
         }
     }
@@ -363,6 +411,7 @@ class WorkoutEditorViewModel(
                         _uiState.update {
                             it.copy(
                                 draft = WorkoutDraft(date = LocalDate.now()),
+                                selectedType = null,
                                 isSaving = false,
                                 isDirty = false,
                                 validationResult = null,
@@ -420,7 +469,10 @@ class WorkoutEditorViewModel(
     // Return whether the draft contains information which would be lost by clearing it
     private fun WorkoutDraft.hasMeaningfulContent(): Boolean =
         name.isNotBlank() || exercises.any { exercise ->
-            exercise.catalogExerciseId != null || exercise.sets.any { it.reps.isNotBlank() || it.weightKg.isNotBlank() }
+            exercise.catalogExerciseId != null ||
+                exercise.sets.any { it.reps.isNotBlank() || it.weightKg.isNotBlank() } ||
+                exercise.cardioEntry.minutes != "00" || exercise.cardioEntry.seconds != "00" ||
+                exercise.cardioEntry.distanceMeters.isNotBlank()
         }
 
     // Copy a saved workout into a draft without converting its canonical kilogram values
@@ -438,8 +490,16 @@ class WorkoutEditorViewModel(
                         weightKg = set.weightKg.asInputText(),
                     )
                 },
+                cardioEntry = exercise.cardioEntry?.let {
+                    CardioEntryDraft(
+                        minutes = (it.durationSeconds / 60).toString().padStart(2, '0'),
+                        seconds = (it.durationSeconds % 60).toString().padStart(2, '0'),
+                        distanceMeters = it.distanceMeters?.asInputText().orEmpty(),
+                    )
+                } ?: CardioEntryDraft(),
             )
         }.ifEmpty { listOf(WorkoutExerciseDraft()) },
+        type = type,
     )
 
     // Convert every valid weight while leaving unfinished or invalid input unchanged
@@ -451,8 +511,21 @@ class WorkoutEditorViewModel(
                     weightKg = value?.let { to.format(to.fromKilograms(from.toKilograms(it))) }
                         ?: set.weightKg,
                 )
+            }, cardioEntry = exercise.cardioEntry.let { cardio ->
+                val value = cardio.distanceMeters.toDoubleOrNull()
+                cardio.copy(distanceMeters = value?.let { to.format(to.fromMeters(from.toMeters(it))) }
+                    ?: cardio.distanceMeters)
             })
         })
+
+    private fun WorkoutDraft.withCanonicalDistancesDisplayed(): WorkoutDraft = copy(
+        exercises = exercises.map { exercise ->
+            val meters = exercise.cardioEntry.distanceMeters.toDoubleOrNull()
+            exercise.copy(cardioEntry = exercise.cardioEntry.copy(
+                distanceMeters = meters?.let(WeightsUnit.METRIC::formatMeters).orEmpty(),
+            ))
+        },
+    )
 
     // Avoid adding trailing zeroes to converted editor values
     private fun Double.asInputText(): String =
@@ -486,6 +559,8 @@ internal fun WorkoutDraft.toKilogramsPreservingUnchanged(
         .orEmpty()
         .flatMap { it.sets }
         .associateBy { it.editorKey }
+    val originalDisplayExercises = originalDisplay?.exercises.orEmpty().associateBy { it.editorKey }
+    val originalCanonicalExercises = originalKilograms?.exercises.orEmpty().associateBy { it.editorKey }
     return copy(exercises = exercises.map { exercise ->
         exercise.copy(sets = exercise.sets.map { set ->
             val originalText = originalDisplaySets[set.editorKey]?.weightKg
@@ -500,6 +575,12 @@ internal fun WorkoutDraft.toKilogramsPreservingUnchanged(
                     } ?: set.weightKg,
                 )
             }
+        }, cardioEntry = exercise.cardioEntry.let { cardio ->
+            val originalText = originalDisplayExercises[exercise.editorKey]?.cardioEntry?.distanceMeters
+            val exactMeters = originalCanonicalExercises[exercise.editorKey]?.cardioEntry?.distanceMeters
+            val value = cardio.distanceMeters.toDoubleOrNull()
+            cardio.copy(distanceMeters = if (exactMeters != null && cardio.distanceMeters == originalText) exactMeters
+            else value?.let { WeightsUnit.METRIC.format(from.toMeters(it)) } ?: cardio.distanceMeters)
         })
     })
 }

@@ -29,8 +29,9 @@ event flow rather than permanent UI state, preventing navigation from repeating 
 
 ## Data model
 
-A workout has a name and date. It owns ordered workout exercises, and each workout exercise owns
-ordered sets. Catalog exercises provide stable exercise identities across workouts. Workout notes
+A workout has a name, date, and fixed Strength or Cardio type. It owns ordered workout exercises.
+Strength exercises own ordered sets; Cardio exercises own one duration entry with optional distance.
+Catalog exercises have the same fixed type and provide stable exercise identities across workouts. Workout notes
 are shared by workout name; exercise notes and goals belong to catalog exercises.
 
 Deletion and rename operations are intentionally centralized in repositories/database helpers
