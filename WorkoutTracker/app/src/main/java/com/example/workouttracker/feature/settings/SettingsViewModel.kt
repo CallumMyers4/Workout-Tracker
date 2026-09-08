@@ -154,7 +154,7 @@ class SettingsViewModel(
                     BackupConnectionState.Connected -> backupRepository.signOut()
                     BackupConnectionState.SignedOut,
                     is BackupConnectionState.Error -> backupRepository.signIn()
-                    else -> Unit
+                    else -> return@launch
                 }
             }.onSuccess {
                 notifySuccess(if (wasConnected) "Google Drive disconnected." else "Google Drive connected.")

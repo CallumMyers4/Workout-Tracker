@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 
@@ -53,6 +54,23 @@ class SettingsViewModelTest {
         assertEquals(1, backup.backupCalls)
         assertEquals(1, backup.restoreCalls)
         assertEquals(1, backup.signOutCalls)
+    }
+
+    @Test
+    fun unavailableDriveDoesNotEmitSuccessOrInvokeAuthentication() = runTest(dispatcher) {
+        val backup = FakeBackupRepository(BackupConnectionState.Unavailable)
+        val model = createModel(backup = backup)
+        advanceUntilIdle()
+
+        val event = async { model.events.first() }
+        advanceUntilIdle()
+        model.signInOrOut()
+        advanceUntilIdle()
+
+        assertFalse(event.isCompleted)
+        event.cancel()
+        assertEquals(0, backup.signInCalls)
+        assertEquals(0, backup.signOutCalls)
     }
 
     @Test
@@ -132,8 +150,10 @@ class SettingsViewModelTest {
         var backupCalls = 0
         var restoreCalls = 0
         var signOutCalls = 0
+        var signInCalls = 0
 
         override suspend fun signIn() {
+            signInCalls++
             state.value = BackupConnectionState.Connected
         }
         override suspend fun signOut() {
