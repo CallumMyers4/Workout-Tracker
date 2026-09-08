@@ -121,14 +121,14 @@ class RoomCheckpoint(
         }
     }
 
-    // Read backup rows before opening the Room writer transaction
-    private fun readSnapshot(candidate: File): BackupSnapshot {
+    // Read and parse backup rows off the caller's dispatcher before opening the Room writer transaction
+    private suspend fun readSnapshot(candidate: File): BackupSnapshot = withContext(Dispatchers.IO) {
         val sqlite = SQLiteDatabase.openDatabase(
             candidate.absolutePath,
             null,
             SQLiteDatabase.OPEN_READONLY,
         )
-        return sqlite.use { source ->
+        sqlite.use { source ->
             BackupSnapshot(
                 catalog = source.rawQuery("SELECT id, name, goalKg, note FROM catalog_exercises", null)
                     .use { cursor ->
