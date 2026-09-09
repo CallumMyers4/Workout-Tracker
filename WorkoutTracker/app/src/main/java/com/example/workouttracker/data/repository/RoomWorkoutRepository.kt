@@ -45,6 +45,7 @@ class RoomWorkoutRepository(
             val names = catalog.associate { it.id to it.name }
             // Group once so mapping remains fast even with many saved workouts
             val entriesByWorkout = entries.groupBy { it.workoutId }
+            val cardioEntriesByWorkoutExercise = cardioEntries.associateBy { it.workoutExerciseId }
             val normalizedQuery = query.trim()
             val earliestDate = when (filter) {
                 WorkoutFilter.ALL_TIME -> null
@@ -57,7 +58,7 @@ class RoomWorkoutRepository(
                     .map { entry -> entry.toDomain(
                         names[entry.catalogExerciseId] ?: "Unknown exercise",
                         emptyList(),
-                        cardioEntries.firstOrNull { it.workoutExerciseId == entry.id },
+                        cardioEntriesByWorkoutExercise[entry.id],
                     ) }
                 workout.toSummary(workoutExercises)
             }.filter { summary ->
