@@ -3,6 +3,8 @@ package com.example.workouttracker.domain.service
 import com.example.workouttracker.core.model.ExerciseSetDraft
 import com.example.workouttracker.core.model.WorkoutDraft
 import com.example.workouttracker.core.model.WorkoutExerciseDraft
+import com.example.workouttracker.core.model.WorkoutType
+import com.example.workouttracker.core.model.CardioEntryDraft
 import com.example.workouttracker.core.result.ValidationResult
 import com.example.workouttracker.core.result.WorkoutField
 import java.time.LocalDate
@@ -66,6 +68,42 @@ class WorkoutValidatorTest {
         val result = validator.validate(draft) as ValidationResult.Invalid
         assertEquals(WorkoutField.WEIGHT, result.field)
         assertTrue(result.message.contains("accurately"))
+    }
+
+    @Test
+    fun validCardioDraftPassesWithOptionalDistance() {
+        val draft = WorkoutDraft(
+            name = "Morning ride",
+            type = WorkoutType.CARDIO,
+            exercises = listOf(WorkoutExerciseDraft(
+                catalogExerciseId = 2,
+                name = "Bike",
+                cardioEntry = CardioEntryDraft(minutes = "62", seconds = "03", distanceMeters = "25.5"),
+            )),
+        )
+        assertEquals(ValidationResult.Valid, validator.validate(draft))
+        assertEquals(
+            ValidationResult.Valid,
+            validator.validate(draft.copy(exercises = listOf(draft.exercises.single().copy(
+                cardioEntry = CardioEntryDraft(minutes = "30", seconds = "00"),
+            )))),
+        )
+    }
+
+    @Test
+    fun cardioDurationAndDistanceAreValidated() {
+        val base = WorkoutDraft(
+            name = "Ride", type = WorkoutType.CARDIO,
+            exercises = listOf(WorkoutExerciseDraft(
+                catalogExerciseId = 2, name = "Bike",
+                cardioEntry = CardioEntryDraft("12", "60", "5"),
+            )),
+        )
+        assertEquals(WorkoutField.DURATION, (validator.validate(base) as ValidationResult.Invalid).field)
+        val invalidDistance = base.copy(exercises = listOf(base.exercises.single().copy(
+            cardioEntry = CardioEntryDraft("12", "30", "0"),
+        )))
+        assertEquals(WorkoutField.DISTANCE, (validator.validate(invalidDistance) as ValidationResult.Invalid).field)
     }
 
     // Create a complete draft which individual tests can alter

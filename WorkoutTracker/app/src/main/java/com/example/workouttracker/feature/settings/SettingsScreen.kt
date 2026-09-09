@@ -111,7 +111,7 @@ fun SettingsScreen(
                             title = "Units",
                             values = WeightsUnit.entries,
                             selected = uiState.preferences.weightsUnit,
-                            label = { if (it == WeightsUnit.METRIC) "Metric (kg)" else "Imperial (lb)" },
+                            label = { if (it == WeightsUnit.METRIC) "Metric (kg, km)" else "Imperial (lb, mi)" },
                             onSelected = onWeightsUnitChanged,
                             modifier = Modifier.fillMaxWidth(),
                         )

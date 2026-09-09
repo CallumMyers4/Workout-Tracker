@@ -4,12 +4,14 @@ import com.example.workouttracker.core.model.WorkoutFilter
 import com.example.workouttracker.core.model.WorkoutGrouping
 import com.example.workouttracker.core.model.WorkoutSort
 import com.example.workouttracker.core.model.WorkoutSummary
+import com.example.workouttracker.core.model.WorkoutTypeFilter
 
 // Current state of the workout list page
 data class WorkoutListUiState(
     val workouts: List<WorkoutSummary> = emptyList(),
     val searchText: String = "",
     val filter: WorkoutFilter = WorkoutFilter.ALL_TIME,
+    val typeFilter: WorkoutTypeFilter = WorkoutTypeFilter.ALL,
     val sort: WorkoutSort = WorkoutSort.NEWEST,
     val grouping: WorkoutGrouping = WorkoutGrouping.NONE,
     val collapsedGroups: Set<String> = emptySet(),

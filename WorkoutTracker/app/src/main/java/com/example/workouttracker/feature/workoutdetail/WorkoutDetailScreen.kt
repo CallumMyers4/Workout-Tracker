@@ -21,6 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.workouttracker.R
 import com.example.workouttracker.core.model.WeightsUnit
+import com.example.workouttracker.core.model.WorkoutType
+import com.example.workouttracker.core.model.formatDuration
 import com.example.workouttracker.ui.theme.EmptyStateTextStyle
 import com.example.workouttracker.ui.theme.PageTitle
 import java.time.format.DateTimeFormatter
@@ -70,7 +72,14 @@ fun WorkoutDetailScreen(
                         Column(Modifier.padding(16.dp)) {
                             Text(workout.name)
                             Text(workout.date.format(DATE_FORMAT))
-                            Text("${workout.exercises.size} exercise ${if (workout.exercises.size == 1) "entry" else "entries"}")
+                            Text(if (workout.type == WorkoutType.CARDIO) "Cardio" else "Strength")
+                            Text("${workout.exercises.size} ${if (workout.exercises.size == 1) "exercise" else "exercises"}")
+                            if (workout.type == WorkoutType.CARDIO) {
+                                val duration = workout.exercises.sumOf { it.cardioEntry?.durationSeconds ?: 0L }
+                                val distance = workout.exercises.sumOf { it.cardioEntry?.distanceMeters ?: 0.0 }
+                                Text("Total duration: ${duration.formatDuration()}")
+                                if (distance > 0) Text("Total distance: ${weightsUnit.formatMeters(distance)} ${weightsUnit.distanceSymbol}")
+                            }
                             Button(onClick = { onEdit(workout.id) }) { Text("Edit workout") }
                             OutlinedButton(onClick = onRequestDelete, enabled = !uiState.isDeleting) {
                                 Text(if (uiState.isDeleting) "Deleting…" else "Delete workout")
@@ -101,7 +110,7 @@ fun WorkoutDetailScreen(
         AlertDialog(
             onDismissRequest = onCancelDelete,
             title = { Text("Delete workout?") },
-            text = { Text("This permanently removes the workout and all of its sets.") },
+            text = { Text("This permanently removes the workout and all of its entries.") },
             confirmButton = { TextButton(onClick = onConfirmDelete) { Text("Delete") } },
             dismissButton = { TextButton(onClick = onCancelDelete) { Text("Cancel") } },
         )

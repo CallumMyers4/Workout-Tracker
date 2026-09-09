@@ -17,4 +17,7 @@ data class CatalogExerciseEntity(
     val name: String,
     val goalKg: Double? = null,
     val note: String? = null,
+    @ColumnInfo(defaultValue = "'STRENGTH'") val type: String = "STRENGTH",
+    val cardioGoalDistanceMeters: Double? = null,
+    val cardioGoalDurationSeconds: Long? = null,
 )

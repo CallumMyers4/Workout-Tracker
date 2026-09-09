@@ -10,6 +10,9 @@ import com.example.workouttracker.data.local.WorkoutDatabase
 import com.example.workouttracker.data.local.entity.ExerciseSetEntity
 import com.example.workouttracker.data.local.entity.WorkoutEntity
 import com.example.workouttracker.data.local.entity.WorkoutExerciseEntity
+import com.example.workouttracker.data.local.entity.CardioEntryEntity
+import com.example.workouttracker.core.model.WorkoutType
+import com.example.workouttracker.core.model.durationSecondsOrNull
 import com.example.workouttracker.data.mapper.toDomain
 import com.example.workouttracker.data.mapper.toSummary
 import com.example.workouttracker.domain.repository.WorkoutRepository
@@ -37,10 +40,12 @@ class RoomWorkoutRepository(
             database.workoutDao().observeAll(),
             exerciseDao.observeAllWorkoutExercises(),
             exerciseDao.observeCatalog(),
-        ) { workouts, entries, catalog ->
+            database.cardioDao().observeAll(),
+        ) { workouts, entries, catalog, cardioEntries ->
             val names = catalog.associate { it.id to it.name }
             // Group once so mapping remains fast even with many saved workouts
             val entriesByWorkout = entries.groupBy { it.workoutId }
+            val cardioEntriesByWorkoutExercise = cardioEntries.associateBy { it.workoutExerciseId }
             val normalizedQuery = query.trim()
             val earliestDate = when (filter) {
                 WorkoutFilter.ALL_TIME -> null
@@ -50,7 +55,11 @@ class RoomWorkoutRepository(
             }
             workouts.map { workout ->
                 val workoutExercises = entriesByWorkout[workout.id].orEmpty()
-                    .map { it.toDomain(names[it.catalogExerciseId] ?: "Unknown exercise", emptyList()) }
+                    .map { entry -> entry.toDomain(
+                        names[entry.catalogExerciseId] ?: "Unknown exercise",
+                        emptyList(),
+                        cardioEntriesByWorkoutExercise[entry.id],
+                    ) }
                 workout.toSummary(workoutExercises)
             }.filter { summary ->
                 val matchesDate = earliestDate == null || summary.date?.let { it >= earliestDate } == true
@@ -79,13 +88,15 @@ class RoomWorkoutRepository(
             database.exerciseDao().observeWorkoutExercises(workoutId),
             database.exerciseDao().observeCatalog(),
             database.setDao().observeForWorkout(workoutId),
-        ) { workout, entries, catalog, sets ->
+            database.cardioDao().observeForWorkout(workoutId),
+        ) { workout, entries, catalog, sets, cardioEntries ->
             workout?.toDomain(
                 entries.map { entry ->
                     entry.toDomain(
                         catalog.firstOrNull { it.id == entry.catalogExerciseId }?.name
                             ?: "Unknown exercise",
                         sets.filter { it.workoutExerciseId == entry.id },
+                        cardioEntries.firstOrNull { it.workoutExerciseId == entry.id },
                     )
                 },
             )
@@ -101,11 +112,13 @@ class RoomWorkoutRepository(
                 id = draft.workoutId ?: 0,
                 name = draft.name.trim(),
                 date = draft.date,
+                type = draft.type.name,
             )
             val workoutId = if (draft.workoutId == null) {
                 workoutDao.insert(parent)
             } else {
-                requireNotNull(workoutDao.getById(draft.workoutId)) { "Workout no longer exists." }
+                val existing = requireNotNull(workoutDao.getById(draft.workoutId)) { "Workout no longer exists." }
+                require(existing.type == draft.type.name) { "An existing workout's type cannot be changed." }
                 workoutDao.update(parent)
                 draft.workoutId
             }
@@ -118,7 +131,7 @@ class RoomWorkoutRepository(
                 }
                 requireNotNull(exerciseDao.getCatalogExercise(catalogId)) {
                     "One of the selected exercises no longer exists."
-                }
+                }.also { require(it.type == draft.type.name) { "Exercise type does not match workout type." } }
                 val entryId = exerciseDao.insertWorkoutExercises(
                     listOf(
                         WorkoutExerciseEntity(
@@ -128,15 +141,32 @@ class RoomWorkoutRepository(
                         ),
                     ),
                 ).single()
-                val setRows = draftExercise.sets.mapIndexed { setPosition, set ->
-                    ExerciseSetEntity(
+                if (draft.type == WorkoutType.STRENGTH) {
+                    val setRows = draftExercise.sets.mapIndexed { setPosition, set ->
+                        ExerciseSetEntity(
+                            workoutExerciseId = entryId,
+                            position = setPosition,
+                            reps = requireNotNull(set.reps.toIntOrNull()) { "Reps must be a whole number." },
+                            weightKg = requireNotNull(set.weightKg.toDoubleOrNull()) { "Weight must be a number." },
+                        )
+                    }
+                    database.setDao().insertAll(setRows)
+                } else {
+                    val cardio = draftExercise.cardioEntry
+                    val duration = requireNotNull(cardio.durationSecondsOrNull()) {
+                        "Minutes and seconds must be valid whole numbers."
+                    }
+                    require(duration > 0) { "Duration must be positive." }
+                    val distance = if (cardio.distanceMeters.isBlank()) null else {
+                        requireNotNull(cardio.distanceMeters.toDoubleOrNull()) { "Distance must be a number." }
+                            .also { require(it.isFinite() && it > 0.0) { "Distance must be positive." } }
+                    }
+                    database.cardioDao().insert(CardioEntryEntity(
                         workoutExerciseId = entryId,
-                        position = setPosition,
-                        reps = requireNotNull(set.reps.toIntOrNull()) { "Reps must be a whole number." },
-                        weightKg = requireNotNull(set.weightKg.toDoubleOrNull()) { "Weight must be a number." },
-                    )
+                        durationSeconds = duration,
+                        distanceMeters = distance,
+                    ))
                 }
-                database.setDao().insertAll(setRows)
             }
             workoutId
         }

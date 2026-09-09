@@ -39,4 +39,20 @@ class WeightsUnitTest {
         assertEquals(false, "12.345".isValidWeightInput())
         assertEquals(false, "weight".isValidWeightInput())
     }
+
+    @Test
+    fun distanceUnitsRoundTripThroughMeters() {
+        assertEquals(5.0, WeightsUnit.METRIC.fromMeters(WeightsUnit.METRIC.toMeters(5.0)), 0.0)
+        assertEquals(3.1, WeightsUnit.IMPERIAL.fromMeters(WeightsUnit.IMPERIAL.toMeters(3.1)), 1e-12)
+        assertEquals("km", WeightsUnit.METRIC.distanceSymbol)
+        assertEquals("mi", WeightsUnit.IMPERIAL.distanceSymbol)
+    }
+
+    @Test
+    fun splitDurationAcceptsMinutesAndSeconds() {
+        assertEquals(754L, CardioEntryDraft("12", "34").durationSecondsOrNull())
+        assertEquals(3723L, CardioEntryDraft("62", "03").durationSecondsOrNull())
+        assertEquals(0L, CardioEntryDraft().durationSecondsOrNull())
+        assertEquals(null, CardioEntryDraft("1", "60").durationSecondsOrNull())
+    }
 }

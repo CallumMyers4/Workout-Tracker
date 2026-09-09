@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.workouttracker.core.model.WorkoutFilter
 import com.example.workouttracker.core.model.WorkoutGrouping
 import com.example.workouttracker.core.model.WorkoutSort
+import com.example.workouttracker.core.model.WorkoutTypeFilter
+import com.example.workouttracker.core.model.WorkoutType
 import com.example.workouttracker.domain.repository.PreferencesRepository
 import com.example.workouttracker.domain.repository.WorkoutRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +47,7 @@ class WorkoutListViewModel(
                         filter = preferences.filter,
                         sort = preferences.sort,
                         grouping = preferences.grouping,
+                        typeFilter = preferences.workoutTypeFilter,
                     )
                 }
                 val matchingWorkouts = workoutRepository.observeWorkoutSummaries(
@@ -59,7 +62,12 @@ class WorkoutListViewModel(
                     sort = preferences.sort,
                     grouping = preferences.grouping,
                 )
-                combine(matchingWorkouts, allSavedWorkouts) { matching, all -> matching to all.isNotEmpty() }
+                combine(matchingWorkouts, allSavedWorkouts) { matching, all ->
+                    matching.filter { workout ->
+                        preferences.workoutTypeFilter == WorkoutTypeFilter.ALL ||
+                            workout.type.name == preferences.workoutTypeFilter.name
+                    } to all.isNotEmpty()
+                }
             }.onStart { _uiState.update { it.copy(isLoading = true) } }
                 .catch { error ->
                     _uiState.update { it.copy(isLoading = false, errorMessage = error.userMessage()) }
@@ -94,6 +102,10 @@ class WorkoutListViewModel(
     // Update the selected date filter
     fun setFilter(filter: WorkoutFilter) {
         updateBrowsePreference { it.copy(filter = filter) }
+    }
+
+    fun setTypeFilter(filter: WorkoutTypeFilter) {
+        updateBrowsePreference { it.copy(workoutTypeFilter = filter) }
     }
 
     // Update the selected sorting order

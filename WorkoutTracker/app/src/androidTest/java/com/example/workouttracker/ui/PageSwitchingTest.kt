@@ -57,13 +57,15 @@ class PageSwitchingTest {
         homeSearchField().assertIsDisplayed()
 
         openTab("Log")
-        workoutNameField().assertIsDisplayed()
+        composeRule.onNodeWithText("Strength").assertIsDisplayed()
+        composeRule.onNodeWithText("Cardio").assertIsDisplayed()
     }
 
     @Test
     fun unfinishedLogDraftSurvivesSwitchingThroughEveryOtherTab() {
         showApp()
         openTab("Log")
+        composeRule.onNodeWithText("Strength").performClick()
         workoutNameField().performTextReplacement("Unfinished push day")
 
         listOf("Home", "Progress", "Settings").forEach { destination ->
@@ -122,6 +124,7 @@ class PageSwitchingTest {
         seedWorkout()
         showApp()
         openTab("Log")
+        composeRule.onNodeWithText("Strength").performClick()
         workoutNameField().performTextReplacement("Retained log draft")
         openTab("Home")
         openExistingWorkoutEditor()
@@ -195,7 +198,7 @@ class PageSwitchingTest {
 
     private fun assertBasePage(label: String) {
         when (label) {
-            "Log" -> workoutNameField().assertIsDisplayed()
+            "Log" -> composeRule.onNodeWithText("Strength").assertIsDisplayed()
             "Progress" -> composeRule.onNodeWithText("Add exercises in Settings to create goals.")
                 .assertIsDisplayed()
             "Settings" -> composeRule.onNodeWithText("Manage exercise library").assertIsDisplayed()

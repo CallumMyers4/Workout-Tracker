@@ -9,6 +9,9 @@ data class CatalogExercise(
     val name: String,
     val goalKg: Double? = null,
     val note: String? = null,
+    val type: ExerciseType = ExerciseType.STRENGTH,
+    val cardioGoalDistanceMeters: Double? = null,
+    val cardioGoalDurationSeconds: Long? = null,
 )
 
 // Best recorded set for each exercise
@@ -24,6 +27,15 @@ data class ExerciseProgress(
     val percentage: Double?,
 )
 
+data class CardioProgress(
+    val exercise: CatalogExercise,
+    val latest: CardioEntry? = null,
+    val longestDistanceMeters: Double? = null,
+    val fastestPaceSecondsPerMeter: Double? = null,
+    val bestQualifying: CardioEntry? = null,
+    val percentage: Double? = null,
+)
+
 // Amount of time to show workouts from on the home page
 enum class WeightsUnit {
     METRIC,
@@ -31,6 +43,7 @@ enum class WeightsUnit {
 
     // Return the short unit label shown beside weights
     val symbol: String get() = if (this == METRIC) "kg" else "lb"
+    val distanceSymbol: String get() = if (this == METRIC) "km" else "mi"
 
     // Convert the kilogram value used by storage into the selected display unit
     fun fromKilograms(kilograms: Double): Double =
@@ -51,8 +64,17 @@ enum class WeightsUnit {
     fun formatKilograms(kilograms: Double): String =
         format(fromKilograms(kilograms))
 
+    fun fromMeters(meters: Double): Double =
+        if (this == METRIC) meters / 1000.0 else meters / METERS_PER_MILE
+
+    fun toMeters(distance: Double): Double =
+        if (this == METRIC) distance * 1000.0 else distance * METERS_PER_MILE
+
+    fun formatMeters(meters: Double): String = format(fromMeters(meters))
+
     private companion object {
         const val POUNDS_PER_KILOGRAM = 2.2046226218487757
+        const val METERS_PER_MILE = 1609.344
     }
 }
 

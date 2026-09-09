@@ -10,6 +10,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.workouttracker.data.local.dao.ExerciseDao
 import com.example.workouttracker.data.local.dao.SetDao
+import com.example.workouttracker.data.local.dao.CardioDao
+import com.example.workouttracker.data.local.entity.CardioEntryEntity
 import com.example.workouttracker.data.local.dao.WorkoutDao
 import com.example.workouttracker.data.local.entity.CatalogExerciseEntity
 import com.example.workouttracker.data.local.entity.ExerciseSetEntity
@@ -26,8 +28,9 @@ import java.time.LocalDate
         WorkoutExerciseEntity::class,
         ExerciseSetEntity::class,
         WorkoutNameNoteEntity::class,
+        CardioEntryEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(LocalDateConverters::class)
@@ -40,6 +43,7 @@ abstract class WorkoutDatabase : RoomDatabase() {
 
     // Return the queries which manage exercise sets
     abstract fun setDao(): SetDao
+    abstract fun cardioDao(): CardioDao
 
     companion object {
         const val DATABASE_NAME = "workout-tracker.db"
@@ -55,12 +59,27 @@ abstract class WorkoutDatabase : RoomDatabase() {
                     WorkoutDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     // Require migrations so a schema update never deletes workout history
                     .build()
                     .also { instance = it }
             }
         }
+    }
+}
+
+internal val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE workouts ADD COLUMN type TEXT NOT NULL DEFAULT 'STRENGTH'")
+        db.execSQL("ALTER TABLE catalog_exercises ADD COLUMN type TEXT NOT NULL DEFAULT 'STRENGTH'")
+        db.execSQL("ALTER TABLE catalog_exercises ADD COLUMN cardioGoalDistanceMeters REAL")
+        db.execSQL("ALTER TABLE catalog_exercises ADD COLUMN cardioGoalDurationSeconds INTEGER")
+        db.execSQL("""CREATE TABLE IF NOT EXISTS cardio_entries (
+            workoutExerciseId INTEGER NOT NULL PRIMARY KEY,
+            durationSeconds INTEGER NOT NULL,
+            distanceMeters REAL,
+            FOREIGN KEY(workoutExerciseId) REFERENCES workout_exercises(id) ON DELETE CASCADE
+        )""")
     }
 }
 

@@ -1,6 +1,7 @@
 package com.example.workouttracker.data.repository
 
 import com.example.workouttracker.core.model.CatalogExercise
+import com.example.workouttracker.core.model.ExerciseType
 import com.example.workouttracker.data.local.WorkoutDatabase
 import com.example.workouttracker.data.local.entity.CatalogExerciseEntity
 import com.example.workouttracker.data.local.entity.WorkoutNameNoteEntity
@@ -21,13 +22,13 @@ class RoomExerciseRepository(
     }
 
     // Create new exercise in the catalog, and validate the name is valid
-    override suspend fun addExercise(name: String): Long {
+    override suspend fun addExercise(name: String, type: ExerciseType): Long {
         val cleanName = validateName(name)
         return database.withTransaction {
             require(database.exerciseDao().findCatalogExercise(cleanName) == null) {
                 "An exercise named '$cleanName' already exists."
             }
-            database.exerciseDao().insertCatalogExercise(CatalogExerciseEntity(name = cleanName))
+            database.exerciseDao().insertCatalogExercise(CatalogExerciseEntity(name = cleanName, type = type.name))
         }
     }
 
@@ -62,12 +63,18 @@ class RoomExerciseRepository(
         database.withTransaction {
             val source = requireExercise(sourceExerciseId)
             val target = requireExercise(targetExerciseId)
+            require(source.type == target.type) { "Only exercises of the same type can be combined." }
             val mergedGoal = listOfNotNull(source.goalKg, target.goalKg).maxOrNull()
             val mergedNote = target.note?.takeIf { it.isNotBlank() }
                 ?: source.note?.takeIf { it.isNotBlank() }
             database.exerciseDao().repointWorkoutExercises(sourceExerciseId, targetExerciseId)
             database.exerciseDao().updateCatalogExercise(
-                target.copy(goalKg = mergedGoal, note = mergedNote),
+                target.copy(
+                    goalKg = mergedGoal,
+                    note = mergedNote,
+                    cardioGoalDistanceMeters = target.cardioGoalDistanceMeters ?: source.cardioGoalDistanceMeters,
+                    cardioGoalDurationSeconds = target.cardioGoalDurationSeconds ?: source.cardioGoalDurationSeconds,
+                ),
             )
             database.exerciseDao().deleteCatalogExercise(sourceExerciseId)
         }

@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import com.example.workouttracker.core.model.WorkoutExercise
 import com.example.workouttracker.core.model.WeightsUnit
+import com.example.workouttracker.core.model.formatDuration
 import com.example.workouttracker.ui.theme.GenericCard
 
 // Create a card showing an exercise and all of its saved sets
@@ -19,6 +20,13 @@ fun ExerciseSummaryCard(
         title = exercise.name,
         modifier = modifier.semantics(mergeDescendants = true) {},
     ) {
+        exercise.cardioEntry?.let { entry ->
+            Text("Duration: ${entry.durationSeconds.formatDuration()}")
+            entry.distanceMeters?.let { distance ->
+                Text("Distance: ${weightsUnit.formatMeters(distance)} ${weightsUnit.distanceSymbol}")
+            }
+            return@GenericCard
+        }
         // Display sets using their original order in the workout
         exercise.sets.sortedBy { it.position }.forEachIndexed { index, set ->
             val weight = weightsUnit.formatKilograms(set.weightKg)

@@ -33,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
@@ -309,6 +310,7 @@ fun RowScope.BottomNavigationButton(
 fun GenericCard(
     modifier: Modifier = Modifier,
     title: String? = null,  // Title of the card (optional)
+    titleTrailing: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     colors: CardColors = CardDefaults.cardColors(),
     content: @Composable ColumnScope.() -> Unit,    // The main content of a card, condensed in a column
@@ -320,10 +322,18 @@ fun GenericCard(
         ) {
             // Add title if given
             title?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.titleLarge,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    titleTrailing?.invoke()
+                }
             }
             // Generate content underneath
             content()

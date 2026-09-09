@@ -8,6 +8,7 @@ import com.example.workouttracker.core.model.WorkoutGrouping
 import com.example.workouttracker.core.model.WorkoutSort
 import com.example.workouttracker.core.model.AppNotification
 import com.example.workouttracker.core.model.AppNotificationType
+import com.example.workouttracker.core.model.ExerciseType
 import com.example.workouttracker.domain.repository.BackupRepository
 import com.example.workouttracker.domain.repository.ExerciseRepository
 import com.example.workouttracker.domain.repository.PreferencesRepository
@@ -92,13 +93,13 @@ class SettingsViewModel(
     }
 
     // Add a new exercise after validating its name
-    fun addExercise(name: String) {
+    fun addExercise(name: String, type: ExerciseType = ExerciseType.STRENGTH) {
         val cleanName = name.trim()
         if (cleanName.isEmpty()) {
             _uiState.update { it.copy(errorMessage = "Exercise name cannot be blank.") }
             return
         }
-        launchOperation("Exercise added.") { exerciseRepository.addExercise(cleanName) }
+        launchOperation("Exercise added.") { exerciseRepository.addExercise(cleanName, type) }
     }
 
     // Rename an exercise or ask to combine it when the new name already exists
@@ -111,6 +112,10 @@ class SettingsViewModel(
         }
         val target = _uiState.value.exercises.firstOrNull {
             it.id != exerciseId && it.name.equals(cleanName, ignoreCase = true)
+        }
+        if (target != null && target.type != source.type) {
+            _uiState.update { it.copy(errorMessage = "An exercise with that name exists with a different type.") }
+            return
         }
         if (target != null) {
             _uiState.update {

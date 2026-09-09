@@ -7,9 +7,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.workouttracker.core.model.ExerciseSetDraft
 import com.example.workouttracker.core.model.WorkoutDraft
 import com.example.workouttracker.core.model.WorkoutExerciseDraft
+import com.example.workouttracker.core.model.WorkoutType
+import com.example.workouttracker.core.model.ExerciseType
+import com.example.workouttracker.core.model.CardioEntryDraft
 import com.example.workouttracker.data.local.WorkoutDatabase
 import com.example.workouttracker.data.repository.RoomExerciseRepository
 import com.example.workouttracker.data.repository.RoomWorkoutRepository
+import com.example.workouttracker.data.repository.RoomGoalRepository
+import com.example.workouttracker.domain.service.ProgressCalculator
 import com.example.workouttracker.data.backup.RoomCheckpoint
 import java.time.LocalDate
 import kotlinx.coroutines.flow.first
@@ -84,6 +89,45 @@ class RoomRepositoryTest {
         assertEquals("Shared note", exercises.observeWorkoutNameNote("push day").first())
         exercises.setWorkoutNameNote("PUSH DAY", null)
         assertNull(exercises.observeWorkoutNameNote("push day").first())
+    }
+
+    @Test
+    fun cardioWorkoutRoundTripsAndUsesOneEntryPerExercise() = runBlocking {
+        val bikeId = exercises.addExercise("Bike", ExerciseType.CARDIO)
+        val workoutId = workouts.saveWorkout(WorkoutDraft(
+            name = "Morning ride",
+            type = WorkoutType.CARDIO,
+            exercises = listOf(WorkoutExerciseDraft(
+                catalogExerciseId = bikeId,
+                name = "Bike",
+                cardioEntry = CardioEntryDraft("45", "30", "20000"),
+            )),
+        ))
+
+        val saved = workouts.observeWorkout(workoutId).first()
+        assertEquals(WorkoutType.CARDIO, saved?.type)
+        assertEquals(2730L, saved?.exercises?.single()?.cardioEntry?.durationSeconds)
+        assertEquals(20000.0, saved?.exercises?.single()?.cardioEntry?.distanceMeters)
+        assertEquals(emptyList<Any>(), saved?.exercises?.single()?.sets)
+    }
+
+    @Test
+    fun cardioGoalUsesBestQualifyingAveragePace() = runBlocking {
+        val bikeId = exercises.addExercise("Bike", ExerciseType.CARDIO)
+        workouts.saveWorkout(WorkoutDraft(
+            name = "Five kilometre ride", type = WorkoutType.CARDIO,
+            exercises = listOf(WorkoutExerciseDraft(
+                catalogExerciseId = bikeId, name = "Bike",
+                cardioEntry = CardioEntryDraft("30", "00", "5000"),
+            )),
+        ))
+        val goals = RoomGoalRepository(database, ProgressCalculator())
+        goals.updateCardioGoal(bikeId, 5000.0, 25 * 60L)
+
+        val progress = goals.observeCardioProgress().first().single()
+        assertEquals(5000.0, progress.longestDistanceMeters)
+        assertEquals(1800L, progress.bestQualifying?.durationSeconds)
+        assertEquals(83.333, progress.percentage ?: 0.0, 0.01)
     }
 
     @Test

@@ -134,6 +134,7 @@ fun WorkoutTrackerApp(
                     uiState = state,
                     onSearchChanged = model::onSearchChanged,
                     onFilterChanged = model::setFilter,
+                    onTypeFilterChanged = model::setTypeFilter,
                     onSortChanged = model::setSort,
                     onGroupingChanged = model::setGrouping,
                     onGroupToggled = model::toggleGroup,
@@ -141,6 +142,7 @@ fun WorkoutTrackerApp(
                         navController.navigate(AppRoute.WorkoutDetail(it))
                     },
                     onLoadMore = model::loadMore,
+                    weightsUnit = preferences.weightsUnit,
                 )
             }
             // Create the saved workout details page
@@ -251,6 +253,9 @@ fun WorkoutTrackerApp(
                     weightsUnit = preferences.weightsUnit,
                     onEditGoal = model::openGoalEditor,
                     onGoalInputChanged = model::updateGoalInput,
+                    onGoalMinutesChanged = model::updateGoalMinutes,
+                    onGoalSecondsChanged = model::updateGoalSeconds,
+                    onTypeSelected = model::selectType,
                     onSaveGoal = model::saveGoal,
                     onDismissGoalEditor = model::dismissGoalEditor,
                 )
@@ -332,6 +337,8 @@ private fun WorkoutEditorDestination(
         weightsUnit = weightsUnit,
         isEditing = isEditing,
         onBack = onBack,
+        onTypeSelected = model::selectWorkoutType,
+        onBackToChooser = model::requestBackToChooser,
         tabExitRequested = tabExitRequested,
         onCancelTabExit = onCancelTabExit,
         onConfirmTabExit = onConfirmTabExit,
@@ -350,6 +357,7 @@ private fun WorkoutEditorDestination(
         onAddSet = model::addSet,
         onRemoveSet = model::removeSet,
         onSetChanged = model::updateSet,
+        onCardioEntryChanged = model::updateCardioEntry,
         onRequestClear = model::requestClear,
         onCancelClear = model::cancelClear,
         onConfirmClear = model::confirmClear,

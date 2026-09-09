@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,6 +27,8 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,9 +48,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
 import com.example.workouttracker.R
 import com.example.workouttracker.core.result.ValidationResult
 import com.example.workouttracker.core.model.WeightsUnit
+import com.example.workouttracker.core.model.WorkoutType
 import com.example.workouttracker.ui.theme.ActionButton
 import com.example.workouttracker.ui.theme.DestructiveButton
 import com.example.workouttracker.ui.theme.GenericButton
@@ -69,6 +74,8 @@ fun WorkoutEditorScreen(
     weightsUnit: WeightsUnit,
     isEditing: Boolean,
     onBack: () -> Unit,
+    onTypeSelected: (WorkoutType) -> Unit,
+    onBackToChooser: () -> Unit,
     tabExitRequested: Boolean = false,
     onCancelTabExit: () -> Unit = {},
     onConfirmTabExit: () -> Unit = {},
@@ -87,12 +94,17 @@ fun WorkoutEditorScreen(
     onAddSet: (Int) -> Unit,
     onRemoveSet: (Int, Int) -> Unit,
     onSetChanged: (Int, Int, String, String) -> Unit,
+    onCardioEntryChanged: (Int, String, String, String) -> Unit,
     onRequestClear: () -> Unit,
     onCancelClear: () -> Unit,
     onConfirmClear: () -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (!isEditing && uiState.selectedType == null) {
+        LogTypeChooser(onTypeSelected = onTypeSelected, modifier = modifier)
+        return
+    }
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
     val density = LocalDensity.current
@@ -106,7 +118,8 @@ fun WorkoutEditorScreen(
     val requestBack = {
         if (uiState.isDirty) showDiscardConfirmation = true else onBack()
     }
-    BackHandler(enabled = isEditing, onBack = requestBack)
+    val editorBack = if (isEditing) requestBack else onBackToChooser
+    BackHandler(onBack = editorBack)
     LaunchedEffect(tabExitRequested) {
         if (tabExitRequested) {
             if (uiState.isDirty) showDiscardConfirmation = true else onConfirmTabExit()
@@ -130,11 +143,9 @@ fun WorkoutEditorScreen(
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             PageTitle(
                 text = if (isEditing) "Edit workout" else "Log",
-                icon = painterResource(
-                    if (isEditing) R.drawable.icon_back else R.drawable.icon_add
-                ),
-                onIconClick = if (isEditing) requestBack else null,
-                iconContentDescription = if (isEditing) "Back to workout details" else null,
+                icon = painterResource(R.drawable.icon_back),
+                onIconClick = editorBack,
+                iconContentDescription = if (isEditing) "Back to workout details" else "Back to log type selection",
             )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -178,6 +189,7 @@ fun WorkoutEditorScreen(
                 item(key = exercise.editorKey) {
                     ExerciseEditorCard(
                         exercise = exercise,
+                        exerciseType = uiState.draft.type,
                         weightsUnit = weightsUnit,
                         exerciseIndex = exerciseIndex,
                         catalog = uiState.exerciseCatalog,
@@ -189,6 +201,9 @@ fun WorkoutEditorScreen(
                         onAddSet = { onAddSet(exerciseIndex) },
                         onSetChanged = { setIndex, reps, weight ->
                             onSetChanged(exerciseIndex, setIndex, reps, weight)
+                        },
+                        onCardioEntryChanged = { minutes, seconds, distance ->
+                            onCardioEntryChanged(exerciseIndex, minutes, seconds, distance)
                         },
                         onRemoveSet = { onRemoveSet(exerciseIndex, it) },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
@@ -293,6 +308,47 @@ fun WorkoutEditorScreen(
             onClear = onClearNote,
             onClose = onCloseNote,
         )
+    }
+}
+
+@Composable
+internal fun LogTypeChooser(
+    onTypeSelected: (WorkoutType) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxSize()) {
+        PageTitle(text = "Log", icon = painterResource(R.drawable.icon_add))
+        LogTypeButton(
+            text = "Strength",
+            icon = R.drawable.icon_weights,
+            onClick = { onTypeSelected(WorkoutType.STRENGTH) },
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(12.dp).testTag("strength_log_button"),
+        )
+        LogTypeButton(
+            text = "Cardio",
+            icon = R.drawable.icon_bike,
+            onClick = { onTypeSelected(WorkoutType.CARDIO) },
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(12.dp).testTag("cardio_log_button"),
+        )
+    }
+}
+
+@Composable
+private fun LogTypeButton(
+    text: String,
+    @androidx.annotation.DrawableRes icon: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Button(onClick = onClick, modifier = modifier) {
+        Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+            Icon(
+                painter = painterResource(icon),
+                contentDescription = "$text log",
+                modifier = Modifier.size(96.dp),
+            )
+            Text(text, style = androidx.compose.material3.MaterialTheme.typography.headlineMedium)
+        }
     }
 }
 

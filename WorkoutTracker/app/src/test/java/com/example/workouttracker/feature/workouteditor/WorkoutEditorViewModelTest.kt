@@ -70,9 +70,71 @@ class WorkoutEditorViewModelTest {
         assertNull(model.uiState.value.errorMessage)
     }
 
+    @Test
+    fun selectingTypeAndConfirmedBackReturnsToChooser() = runTest(dispatcher) {
+        val model = WorkoutEditorViewModel(
+            SavedStateHandle(), DeferredWorkoutRepository(), EmptyExerciseRepository(), WorkoutValidator(),
+        )
+        model.selectWorkoutType(WorkoutType.CARDIO)
+        assertEquals(WorkoutType.CARDIO, model.uiState.value.selectedType)
+        model.updateWorkoutName("Ride")
+        model.requestBackToChooser()
+        assertTrue(model.uiState.value.showClearConfirmation)
+        model.confirmClear()
+        assertNull(model.uiState.value.selectedType)
+        assertFalse(model.uiState.value.isDirty)
+    }
+
+    @Test
+    fun blankBackReturnsToChooserWithoutConfirmation() = runTest(dispatcher) {
+        val model = WorkoutEditorViewModel(
+            SavedStateHandle(), DeferredWorkoutRepository(), EmptyExerciseRepository(), WorkoutValidator(),
+        )
+        model.selectWorkoutType(WorkoutType.STRENGTH)
+        model.requestBackToChooser()
+        assertNull(model.uiState.value.selectedType)
+        assertFalse(model.uiState.value.showClearConfirmation)
+    }
+
+    @Test
+    fun newCardioDistanceRetainsCanonicalMetersAcrossUnitChangesAndRecreation() = runTest(dispatcher) {
+        val savedState = SavedStateHandle()
+        val workouts = DeferredWorkoutRepository()
+        val model = WorkoutEditorViewModel(
+            savedState, workouts, EmptyExerciseRepository(), WorkoutValidator(),
+        )
+        model.selectWorkoutType(WorkoutType.CARDIO)
+        model.updateWorkoutName("Morning run")
+        model.createAndSelectExercise(0, "Running")
+        advanceUntilIdle()
+        // Four kilometres exposes the old two-decimal round-trip drift (4 -> 2.49 -> 4.01).
+        model.updateCardioEntry(0, "25", "00", "4")
+
+        model.setWeightsUnit(WeightsUnit.IMPERIAL)
+        assertEquals("2.49", model.uiState.value.draft.exercises.single().cardioEntry.distanceMeters)
+
+        // Recreate the destination as navigation does after visiting Settings.
+        val restoredModel = WorkoutEditorViewModel(
+            savedState, workouts, EmptyExerciseRepository(), WorkoutValidator(),
+        )
+        restoredModel.setWeightsUnit(WeightsUnit.METRIC)
+        assertEquals("4", restoredModel.uiState.value.draft.exercises.single().cardioEntry.distanceMeters)
+
+        restoredModel.save()
+        advanceUntilIdle()
+
+        assertEquals("4000", workouts.savedDraft?.exercises?.single()?.cardioEntry?.distanceMeters)
+        workouts.result.complete(1L)
+        advanceUntilIdle()
+    }
+
     private class DeferredWorkoutRepository : WorkoutRepository {
         var result = CompletableDeferred<Long>()
-        override suspend fun saveWorkout(draft: WorkoutDraft): Long = result.await()
+        var savedDraft: WorkoutDraft? = null
+        override suspend fun saveWorkout(draft: WorkoutDraft): Long {
+            savedDraft = draft
+            return result.await()
+        }
         override fun observeWorkout(workoutId: Long): Flow<Workout?> = flowOf(null)
         override fun observeWorkoutSummaries(
             query: String,
@@ -85,7 +147,7 @@ class WorkoutEditorViewModelTest {
 
     private class EmptyExerciseRepository : ExerciseRepository {
         override fun observeCatalog(): Flow<List<CatalogExercise>> = flowOf(emptyList())
-        override suspend fun addExercise(name: String): Long = 1L
+        override suspend fun addExercise(name: String, type: ExerciseType): Long = 1L
         override suspend fun renameExercise(exerciseId: Long, newName: String) = Unit
         override suspend fun deleteExercise(exerciseId: Long) = Unit
         override suspend fun combineExercises(sourceExerciseId: Long, targetExerciseId: Long) = Unit

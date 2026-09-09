@@ -19,4 +19,6 @@ enum class WorkoutField {
     EXERCISE,
     REPS,
     WEIGHT,
+    DURATION,
+    DISTANCE,
 }

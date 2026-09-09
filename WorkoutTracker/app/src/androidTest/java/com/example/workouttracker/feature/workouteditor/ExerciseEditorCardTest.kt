@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performTextInput
 import com.example.workouttracker.core.model.CatalogExercise
 import com.example.workouttracker.core.model.ExerciseSetDraft
 import com.example.workouttracker.core.model.WorkoutExerciseDraft
+import com.example.workouttracker.core.model.WorkoutType
 import org.junit.Rule
 import org.junit.Test
 
@@ -75,5 +76,25 @@ class ExerciseEditorCardTest {
             }
         }
         composeRule.onAllNodesWithText("1 set").assertCountEquals(1)
+    }
+
+    @Test
+    fun cardioCardShowsSingleDurationAndDistanceWithoutSetControls() {
+        composeRule.setContent {
+            MaterialTheme {
+                ExerciseEditorCard(
+                    exercise = WorkoutExerciseDraft(name = "Bike"),
+                    exerciseType = WorkoutType.CARDIO,
+                    exerciseIndex = 0,
+                    catalog = emptyList(),
+                    onSelected = {}, onCreateExercise = {}, onOpenNote = {}, onToggle = {},
+                    onRemove = {}, onAddSet = {}, onSetChanged = { _, _, _ -> }, onRemoveSet = {},
+                )
+            }
+        }
+        composeRule.onAllNodesWithText("mm").assertCountEquals(1)
+        composeRule.onAllNodesWithText("ss").assertCountEquals(1)
+        composeRule.onAllNodesWithText("Distance (km)").assertCountEquals(1)
+        composeRule.onAllNodesWithText("Add set").assertCountEquals(0)
     }
 }

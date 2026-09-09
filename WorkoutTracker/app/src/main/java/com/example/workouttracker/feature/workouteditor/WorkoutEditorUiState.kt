@@ -5,6 +5,7 @@ import com.example.workouttracker.core.model.CatalogExercise
 import com.example.workouttracker.core.model.WorkoutDraft
 import com.example.workouttracker.core.result.ValidationResult
 import java.io.Serializable
+import com.example.workouttracker.core.model.WorkoutType
 
 // Current state of the workout editor page
 data class WorkoutEditorUiState(
@@ -16,6 +17,8 @@ data class WorkoutEditorUiState(
     val validationResult: ValidationResult? = null,
     val errorMessage: String? = null,
     val noteEditor: NoteEditorState? = null,
+    val selectedType: WorkoutType? = null,
+    val returnToChooserAfterClear: Boolean = false,
 )
 
 // Current state of a dialog allowing the user to update a note
