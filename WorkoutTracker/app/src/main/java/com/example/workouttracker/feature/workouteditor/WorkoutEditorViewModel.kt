@@ -47,6 +47,8 @@ class WorkoutEditorViewModel(
     private var fullCatalog = emptyList<com.example.workouttracker.core.model.CatalogExercise>()
     // Keep the exact persisted values separate from converted editor text
     private var originalKilogramDraft = savedStateHandle.get<WorkoutDraft>(ORIGINAL_KILOGRAM_DRAFT_KEY)
+    // Keep cardio distances in meters so rounded display text is never used as the next conversion source
+    private var canonicalCardioDraft = savedStateHandle.get<WorkoutDraft>(CANONICAL_CARDIO_DRAFT_KEY)
     // Restore the unit used by saved draft text so it can be converted safely
     private var weightsUnit = savedStateHandle.get<String>(WEIGHTS_UNIT_KEY)
         ?.let { runCatching { WeightsUnit.valueOf(it) }.getOrNull() }
@@ -59,6 +61,10 @@ class WorkoutEditorViewModel(
         val workoutId = savedStateHandle.get<Long>("workoutId")
         if (restoredNote != null) _uiState.update { it.copy(noteEditor = restoredNote) }
         if (restoredDraft != null) {
+            if (canonicalCardioDraft == null) {
+                canonicalCardioDraft = restoredDraft.withCanonicalDistances(weightsUnit)
+                savedStateHandle[CANONICAL_CARDIO_DRAFT_KEY] = canonicalCardioDraft
+            }
             _uiState.update { it.copy(draft = restoredDraft, isDirty = true, selectedType = restoredDraft.type) }
         }
         if (workoutId != null &&
@@ -72,6 +78,10 @@ class WorkoutEditorViewModel(
                         val loadedDraft = metricDraft.convertWeights(WeightsUnit.METRIC, weightsUnit)
                         originalKilogramDraft = kilogramDraft
                         savedStateHandle[ORIGINAL_KILOGRAM_DRAFT_KEY] = kilogramDraft
+                        if (restoredDraft == null) {
+                            canonicalCardioDraft = kilogramDraft
+                            savedStateHandle[CANONICAL_CARDIO_DRAFT_KEY] = kilogramDraft
+                        }
                         if (originalDraft == null) {
                             originalDraft = loadedDraft
                             savedStateHandle[ORIGINAL_DRAFT_KEY] = loadedDraft
@@ -115,10 +125,10 @@ class WorkoutEditorViewModel(
         val previous = weightsUnit
         weightsUnit = unit
         savedStateHandle[WEIGHTS_UNIT_KEY] = unit.name
-        originalDraft = originalDraft?.convertWeights(previous, unit)
+        originalDraft = originalDraft?.convertWeights(previous, unit, originalKilogramDraft)
         originalDraft?.let { savedStateHandle[ORIGINAL_DRAFT_KEY] = it }
         _uiState.update { state ->
-            val converted = state.draft.convertWeights(previous, unit)
+            val converted = state.draft.convertWeights(previous, unit, canonicalCardioDraft)
             if (state.isDirty) savedStateHandle[DRAFT_KEY] = converted
             state.copy(draft = converted)
         }
@@ -131,7 +141,9 @@ class WorkoutEditorViewModel(
 
     fun selectWorkoutType(type: WorkoutType) {
         val draft = WorkoutDraft(type = type)
+        canonicalCardioDraft = draft.withCanonicalDistances(weightsUnit)
         savedStateHandle[DRAFT_KEY] = draft
+        savedStateHandle[CANONICAL_CARDIO_DRAFT_KEY] = canonicalCardioDraft
         _uiState.update { it.copy(
             draft = draft, selectedType = type, isDirty = false,
             exerciseCatalog = fullCatalog.filter { exercise -> exercise.type.name == type.name },
@@ -147,6 +159,8 @@ class WorkoutEditorViewModel(
 
     private fun returnToChooser() {
         savedStateHandle.remove<WorkoutDraft>(DRAFT_KEY)
+        savedStateHandle.remove<WorkoutDraft>(CANONICAL_CARDIO_DRAFT_KEY)
+        canonicalCardioDraft = null
         _uiState.update { it.copy(
             draft = WorkoutDraft(), selectedType = null, isDirty = false,
             showClearConfirmation = false, returnToChooserAfterClear = false,
@@ -372,6 +386,10 @@ class WorkoutEditorViewModel(
             originalDraft ?: return
         }
         savedStateHandle.remove<WorkoutDraft>(DRAFT_KEY)
+        canonicalCardioDraft = if (editedWorkoutId == null) {
+            clearedDraft.withCanonicalDistances(weightsUnit)
+        } else originalKilogramDraft
+        canonicalCardioDraft?.let { savedStateHandle[CANONICAL_CARDIO_DRAFT_KEY] = it }
         _uiState.update {
             it.copy(
                 draft = clearedDraft,
@@ -402,12 +420,15 @@ class WorkoutEditorViewModel(
                         weightsUnit,
                         originalDraft,
                         originalKilogramDraft,
+                        canonicalCardioDraft,
                     ),
                 )
             }
                 .onSuccess { workoutId ->
                     savedStateHandle.remove<WorkoutDraft>(DRAFT_KEY)
                     if (draft.workoutId == null) {
+                        savedStateHandle.remove<WorkoutDraft>(CANONICAL_CARDIO_DRAFT_KEY)
+                        canonicalCardioDraft = null
                         _uiState.update {
                             it.copy(
                                 draft = WorkoutDraft(date = LocalDate.now()),
@@ -447,7 +468,13 @@ class WorkoutEditorViewModel(
     private fun changeDraft(transform: (WorkoutDraft) -> WorkoutDraft) {
         _uiState.update { state ->
             val changed = transform(state.draft)
+            canonicalCardioDraft = changed.withUpdatedCanonicalDistances(
+                previousDisplay = state.draft,
+                previousCanonical = canonicalCardioDraft,
+                from = weightsUnit,
+            )
             savedStateHandle[DRAFT_KEY] = changed
+            savedStateHandle[CANONICAL_CARDIO_DRAFT_KEY] = canonicalCardioDraft
             state.copy(
                 draft = changed,
                 isDirty = true,
@@ -503,8 +530,13 @@ class WorkoutEditorViewModel(
     )
 
     // Convert every valid weight while leaving unfinished or invalid input unchanged
-    private fun WorkoutDraft.convertWeights(from: WeightsUnit, to: WeightsUnit): WorkoutDraft =
-        copy(exercises = exercises.map { exercise ->
+    private fun WorkoutDraft.convertWeights(
+        from: WeightsUnit,
+        to: WeightsUnit,
+        canonicalCardio: WorkoutDraft? = null,
+    ): WorkoutDraft {
+        val canonicalExercises = canonicalCardio?.exercises.orEmpty().associateBy { it.editorKey }
+        return copy(exercises = exercises.map { exercise ->
             exercise.copy(sets = exercise.sets.map { set ->
                 val value = set.weightKg.toDoubleOrNull()
                 set.copy(
@@ -512,11 +544,44 @@ class WorkoutEditorViewModel(
                         ?: set.weightKg,
                 )
             }, cardioEntry = exercise.cardioEntry.let { cardio ->
-                val value = cardio.distanceMeters.toDoubleOrNull()
-                cardio.copy(distanceMeters = value?.let { to.format(to.fromMeters(from.toMeters(it))) }
-                    ?: cardio.distanceMeters)
+                val canonicalMeters = canonicalExercises[exercise.editorKey]
+                    ?.cardioEntry?.distanceMeters?.toDoubleOrNull()
+                val displayed = canonicalMeters?.let(to::formatMeters) ?: run {
+                    val value = cardio.distanceMeters.toDoubleOrNull()
+                    value?.let { to.format(to.fromMeters(from.toMeters(it))) } ?: cardio.distanceMeters
+                }
+                cardio.copy(distanceMeters = displayed)
             })
         })
+    }
+
+    private fun WorkoutDraft.withCanonicalDistances(from: WeightsUnit): WorkoutDraft =
+        copy(exercises = exercises.map { exercise ->
+            val distance = exercise.cardioEntry.distanceMeters
+            exercise.copy(cardioEntry = exercise.cardioEntry.copy(
+                distanceMeters = distance.toDoubleOrNull()?.let { from.toMeters(it).asInputText() } ?: distance,
+            ))
+        })
+
+    private fun WorkoutDraft.withUpdatedCanonicalDistances(
+        previousDisplay: WorkoutDraft,
+        previousCanonical: WorkoutDraft?,
+        from: WeightsUnit,
+    ): WorkoutDraft {
+        val previousDisplayExercises = previousDisplay.exercises.associateBy { it.editorKey }
+        val previousCanonicalExercises = previousCanonical?.exercises.orEmpty().associateBy { it.editorKey }
+        return copy(exercises = exercises.map { exercise ->
+            val distance = exercise.cardioEntry.distanceMeters
+            val previousDistance = previousDisplayExercises[exercise.editorKey]?.cardioEntry?.distanceMeters
+            val retained = previousCanonicalExercises[exercise.editorKey]?.cardioEntry?.distanceMeters
+                ?.takeIf { distance == previousDistance }
+            exercise.copy(cardioEntry = exercise.cardioEntry.copy(
+                distanceMeters = retained
+                    ?: distance.toDoubleOrNull()?.let { from.toMeters(it).asInputText() }
+                    ?: distance,
+            ))
+        })
+    }
 
     private fun WorkoutDraft.withCanonicalDistancesDisplayed(): WorkoutDraft = copy(
         exercises = exercises.map { exercise ->
@@ -538,6 +603,7 @@ class WorkoutEditorViewModel(
         const val DRAFT_KEY = "workout_editor_draft"
         const val ORIGINAL_DRAFT_KEY = "workout_editor_original_draft"
         const val ORIGINAL_KILOGRAM_DRAFT_KEY = "workout_editor_original_kilogram_draft"
+        const val CANONICAL_CARDIO_DRAFT_KEY = "workout_editor_canonical_cardio_draft"
         const val NOTE_EDITOR_KEY = "workout_note_editor"
         const val WEIGHTS_UNIT_KEY = "workout_editor_weights_unit"
     }
@@ -548,6 +614,7 @@ internal fun WorkoutDraft.toKilogramsPreservingUnchanged(
     from: WeightsUnit,
     originalDisplay: WorkoutDraft?,
     originalKilograms: WorkoutDraft?,
+    canonicalCardio: WorkoutDraft? = null,
 ): WorkoutDraft {
     val originalDisplaySets = originalDisplay
         ?.exercises
@@ -561,6 +628,7 @@ internal fun WorkoutDraft.toKilogramsPreservingUnchanged(
         .associateBy { it.editorKey }
     val originalDisplayExercises = originalDisplay?.exercises.orEmpty().associateBy { it.editorKey }
     val originalCanonicalExercises = originalKilograms?.exercises.orEmpty().associateBy { it.editorKey }
+    val canonicalCardioExercises = canonicalCardio?.exercises.orEmpty().associateBy { it.editorKey }
     return copy(exercises = exercises.map { exercise ->
         exercise.copy(sets = exercise.sets.map { set ->
             val originalText = originalDisplaySets[set.editorKey]?.weightKg
@@ -578,9 +646,13 @@ internal fun WorkoutDraft.toKilogramsPreservingUnchanged(
         }, cardioEntry = exercise.cardioEntry.let { cardio ->
             val originalText = originalDisplayExercises[exercise.editorKey]?.cardioEntry?.distanceMeters
             val exactMeters = originalCanonicalExercises[exercise.editorKey]?.cardioEntry?.distanceMeters
+            val draftMeters = canonicalCardioExercises[exercise.editorKey]?.cardioEntry?.distanceMeters
             val value = cardio.distanceMeters.toDoubleOrNull()
-            cardio.copy(distanceMeters = if (exactMeters != null && cardio.distanceMeters == originalText) exactMeters
-            else value?.let { WeightsUnit.METRIC.format(from.toMeters(it)) } ?: cardio.distanceMeters)
+            cardio.copy(distanceMeters = when {
+                draftMeters?.toDoubleOrNull() != null -> draftMeters
+                exactMeters != null && cardio.distanceMeters == originalText -> exactMeters
+                else -> value?.let { WeightsUnit.METRIC.format(from.toMeters(it)) } ?: cardio.distanceMeters
+            })
         })
     })
 }

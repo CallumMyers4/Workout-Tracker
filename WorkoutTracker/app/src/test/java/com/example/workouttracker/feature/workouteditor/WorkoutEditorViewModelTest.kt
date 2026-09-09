@@ -96,9 +96,45 @@ class WorkoutEditorViewModelTest {
         assertFalse(model.uiState.value.showClearConfirmation)
     }
 
+    @Test
+    fun newCardioDistanceRetainsCanonicalMetersAcrossUnitChangesAndRecreation() = runTest(dispatcher) {
+        val savedState = SavedStateHandle()
+        val workouts = DeferredWorkoutRepository()
+        val model = WorkoutEditorViewModel(
+            savedState, workouts, EmptyExerciseRepository(), WorkoutValidator(),
+        )
+        model.selectWorkoutType(WorkoutType.CARDIO)
+        model.updateWorkoutName("Morning run")
+        model.createAndSelectExercise(0, "Running")
+        advanceUntilIdle()
+        // Four kilometres exposes the old two-decimal round-trip drift (4 -> 2.49 -> 4.01).
+        model.updateCardioEntry(0, "25", "00", "4")
+
+        model.setWeightsUnit(WeightsUnit.IMPERIAL)
+        assertEquals("2.49", model.uiState.value.draft.exercises.single().cardioEntry.distanceMeters)
+
+        // Recreate the destination as navigation does after visiting Settings.
+        val restoredModel = WorkoutEditorViewModel(
+            savedState, workouts, EmptyExerciseRepository(), WorkoutValidator(),
+        )
+        restoredModel.setWeightsUnit(WeightsUnit.METRIC)
+        assertEquals("4", restoredModel.uiState.value.draft.exercises.single().cardioEntry.distanceMeters)
+
+        restoredModel.save()
+        advanceUntilIdle()
+
+        assertEquals("4000", workouts.savedDraft?.exercises?.single()?.cardioEntry?.distanceMeters)
+        workouts.result.complete(1L)
+        advanceUntilIdle()
+    }
+
     private class DeferredWorkoutRepository : WorkoutRepository {
         var result = CompletableDeferred<Long>()
-        override suspend fun saveWorkout(draft: WorkoutDraft): Long = result.await()
+        var savedDraft: WorkoutDraft? = null
+        override suspend fun saveWorkout(draft: WorkoutDraft): Long {
+            savedDraft = draft
+            return result.await()
+        }
         override fun observeWorkout(workoutId: Long): Flow<Workout?> = flowOf(null)
         override fun observeWorkoutSummaries(
             query: String,
