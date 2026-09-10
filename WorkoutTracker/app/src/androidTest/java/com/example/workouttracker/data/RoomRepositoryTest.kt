@@ -11,6 +11,7 @@ import com.example.workouttracker.core.model.WorkoutType
 import com.example.workouttracker.core.model.ExerciseType
 import com.example.workouttracker.core.model.CardioEntryDraft
 import com.example.workouttracker.data.local.WorkoutDatabase
+import com.example.workouttracker.data.local.DEFAULT_EXERCISE_CALLBACK
 import com.example.workouttracker.data.repository.RoomExerciseRepository
 import com.example.workouttracker.data.repository.RoomWorkoutRepository
 import com.example.workouttracker.data.repository.RoomGoalRepository
@@ -89,6 +90,51 @@ class RoomRepositoryTest {
         assertEquals("Shared note", exercises.observeWorkoutNameNote("push day").first())
         exercises.setWorkoutNameNote("PUSH DAY", null)
         assertNull(exercises.observeWorkoutNameNote("push day").first())
+    }
+
+    @Test
+    fun newDatabaseContainsDefaultStrengthAndCardioExercisesWithoutDuplicates() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "default-exercises-${System.nanoTime()}.db"
+        context.deleteDatabase(databaseName)
+
+        fun openDatabase() = Room.databaseBuilder(context, WorkoutDatabase::class.java, databaseName)
+            .addCallback(DEFAULT_EXERCISE_CALLBACK)
+            .allowMainThreadQueries()
+            .build()
+
+        val expected = listOf(
+            "Barbell Row" to ExerciseType.STRENGTH,
+            "Bench Press" to ExerciseType.STRENGTH,
+            "Bicep Curl" to ExerciseType.STRENGTH,
+            "Cycling" to ExerciseType.CARDIO,
+            "Deadlift" to ExerciseType.STRENGTH,
+            "Lat Pulldown" to ExerciseType.STRENGTH,
+            "Leg Press" to ExerciseType.STRENGTH,
+            "Overhead Press" to ExerciseType.STRENGTH,
+            "Running" to ExerciseType.CARDIO,
+            "Squat" to ExerciseType.STRENGTH,
+            "Tricep Extension" to ExerciseType.STRENGTH,
+            "Walking" to ExerciseType.CARDIO,
+        )
+
+        val seededDatabase = openDatabase()
+        try {
+            try {
+                assertEquals(expected, seededDatabase.exerciseDao().getCatalog().map { it.name to ExerciseType.valueOf(it.type) })
+            } finally {
+                seededDatabase.close()
+            }
+
+            val reopenedDatabase = openDatabase()
+            try {
+                assertEquals(expected, reopenedDatabase.exerciseDao().getCatalog().map { it.name to ExerciseType.valueOf(it.type) })
+            } finally {
+                reopenedDatabase.close()
+            }
+        } finally {
+            context.deleteDatabase(databaseName)
+        }
     }
 
     @Test
