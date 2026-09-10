@@ -60,6 +60,7 @@ abstract class WorkoutDatabase : RoomDatabase() {
                     DATABASE_NAME,
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addCallback(DEFAULT_EXERCISE_CALLBACK)
                     // Require migrations so a schema update never deletes workout history
                     .build()
                     .also { instance = it }
