@@ -213,6 +213,9 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v6
 
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
@@ -282,6 +285,9 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v6
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
 
       - name: Set up Java
         uses: actions/setup-java@v5
