@@ -128,14 +128,137 @@ class WorkoutEditorViewModelTest {
         advanceUntilIdle()
     }
 
-    private class DeferredWorkoutRepository : WorkoutRepository {
+    @Test
+    fun imperialDraftIsConvertedAtRepositorySaveBoundaryAfterUnitSwitches() = runTest(dispatcher) {
+        val workouts = DeferredWorkoutRepository()
+        val model = WorkoutEditorViewModel(
+            SavedStateHandle(), workouts, EmptyExerciseRepository(), WorkoutValidator(),
+        )
+        model.selectWorkoutType(WorkoutType.STRENGTH)
+        model.setWeightsUnit(WeightsUnit.IMPERIAL)
+        model.updateWorkoutName("Heavy day")
+        model.createAndSelectExercise(0, "Deadlift")
+        advanceUntilIdle()
+        model.updateSet(0, 0, "5", "220.46")
+
+        model.setWeightsUnit(WeightsUnit.METRIC)
+        assertEquals("100", model.uiState.value.draft.exercises.single().sets.single().weightKg)
+        model.setWeightsUnit(WeightsUnit.IMPERIAL)
+        assertEquals("220.46", model.uiState.value.draft.exercises.single().sets.single().weightKg)
+
+        model.save()
+        advanceUntilIdle()
+
+        val savedWeight = requireNotNull(workouts.savedDraft)
+            .exercises.single().sets.single().weightKg.toDouble()
+        assertEquals(100.0, savedWeight, 0.01)
+        workouts.result.complete(1L)
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun exerciseAndSetActionsMaintainRequiredBlankRows() = runTest(dispatcher) {
+        val model = WorkoutEditorViewModel(
+            SavedStateHandle(), DeferredWorkoutRepository(), EmptyExerciseRepository(), WorkoutValidator(),
+        )
+        model.selectWorkoutType(WorkoutType.STRENGTH)
+        model.createAndSelectExercise(0, "Squat")
+        advanceUntilIdle()
+
+        model.addSet(0)
+        model.updateSet(0, 1, "8", "60")
+        assertEquals(2, model.uiState.value.draft.exercises.single().sets.size)
+        assertEquals("8", model.uiState.value.draft.exercises.single().sets[1].reps)
+
+        model.removeSet(0, 1)
+        model.removeSet(0, 0)
+        assertEquals(1, model.uiState.value.draft.exercises.single().sets.size)
+        assertEquals("", model.uiState.value.draft.exercises.single().sets.single().reps)
+
+        model.addExercise()
+        assertEquals(2, model.uiState.value.draft.exercises.size)
+        assertFalse(model.uiState.value.draft.exercises.first().expanded)
+        model.removeExercise(1)
+        model.removeExercise(0)
+        assertEquals(1, model.uiState.value.draft.exercises.size)
+        assertNull(model.uiState.value.draft.exercises.single().catalogExerciseId)
+    }
+
+    @Test
+    fun unfinishedDraftIsRestoredAndCanBeCleared() = runTest(dispatcher) {
+        val savedState = SavedStateHandle()
+        val workouts = DeferredWorkoutRepository()
+        val exercises = EmptyExerciseRepository()
+        val firstModel = WorkoutEditorViewModel(savedState, workouts, exercises, WorkoutValidator())
+        firstModel.selectWorkoutType(WorkoutType.STRENGTH)
+        firstModel.updateWorkoutName("Unfinished workout")
+        firstModel.createAndSelectExercise(0, "Squat")
+        advanceUntilIdle()
+
+        val restoredModel = WorkoutEditorViewModel(savedState, workouts, exercises, WorkoutValidator())
+        advanceUntilIdle()
+        assertEquals("Unfinished workout", restoredModel.uiState.value.draft.name)
+        assertEquals("Squat", restoredModel.uiState.value.draft.exercises.single().name)
+        assertTrue(restoredModel.uiState.value.isDirty)
+
+        restoredModel.requestClear()
+        assertTrue(restoredModel.uiState.value.showClearConfirmation)
+        restoredModel.confirmClear()
+
+        val afterClear = WorkoutEditorViewModel(savedState, workouts, exercises, WorkoutValidator())
+        advanceUntilIdle()
+        assertEquals("", afterClear.uiState.value.draft.name)
+        assertFalse(afterClear.uiState.value.isDirty)
+    }
+
+    @Test
+    fun existingWorkoutLoadsAndSavesAsAnEdit() = runTest(dispatcher) {
+        val existing = Workout(
+            id = 42L,
+            name = "Original workout",
+            date = java.time.LocalDate.of(2026, 9, 1),
+            exercises = listOf(
+                WorkoutExercise(
+                    catalogExerciseId = 7L,
+                    name = "Bench press",
+                    position = 0,
+                    sets = listOf(ExerciseSet(position = 0, reps = 5, weightKg = 80.0)),
+                ),
+            ),
+        )
+        val workouts = DeferredWorkoutRepository(existing)
+        val model = WorkoutEditorViewModel(
+            SavedStateHandle(mapOf("workoutId" to 42L)),
+            workouts,
+            EmptyExerciseRepository(),
+            WorkoutValidator(),
+        )
+        advanceUntilIdle()
+        assertEquals("Original workout", model.uiState.value.draft.name)
+        assertFalse(model.uiState.value.isDirty)
+
+        model.updateWorkoutName("Updated workout")
+        model.save()
+        advanceUntilIdle()
+        assertEquals(42L, workouts.savedDraft?.workoutId)
+        assertEquals("Updated workout", workouts.savedDraft?.name)
+
+        workouts.result.complete(42L)
+        advanceUntilIdle()
+        assertFalse(model.uiState.value.isDirty)
+        assertEquals("Updated workout", model.uiState.value.draft.name)
+    }
+
+    private class DeferredWorkoutRepository(
+        private val workout: Workout? = null,
+    ) : WorkoutRepository {
         var result = CompletableDeferred<Long>()
         var savedDraft: WorkoutDraft? = null
         override suspend fun saveWorkout(draft: WorkoutDraft): Long {
             savedDraft = draft
             return result.await()
         }
-        override fun observeWorkout(workoutId: Long): Flow<Workout?> = flowOf(null)
+        override fun observeWorkout(workoutId: Long): Flow<Workout?> = flowOf(workout)
         override fun observeWorkoutSummaries(
             query: String,
             filter: WorkoutFilter,

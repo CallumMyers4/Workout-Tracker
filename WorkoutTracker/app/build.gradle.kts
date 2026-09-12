@@ -1,3 +1,5 @@
+import org.gradle.testing.jacoco.tasks.JacocoReport
+
 // Apply the plugins used to build the Android app, Compose interface, and Room database
 plugins {
     alias(libs.plugins.android.application)
@@ -5,6 +7,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.room)
+    jacoco
 }
 
 // Read release signing values from the build environment without storing secrets in the repository
@@ -67,6 +70,28 @@ android {
 room {
     // Save Room schemas so future database migrations can be checked
     schemaDirectory("$projectDir/schemas")
+}
+
+// Produce a repeatable line/branch report for the local JVM unit-test suite.
+tasks.register<JacocoReport>("jacocoDebugUnitTestReport") {
+    dependsOn("testDebugUnitTest")
+    executionData(layout.buildDirectory.file("jacoco/testDebugUnitTest.exec"))
+    sourceDirectories.setFrom(files("src/main/java"))
+    classDirectories.setFrom(
+        fileTree(layout.buildDirectory.dir("intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes")) {
+            exclude(
+                "**/R.class",
+                "**/R$*.class",
+                "**/BuildConfig.*",
+                "**/ComposableSingletons*",
+            )
+        },
+    )
+    reports {
+        html.required.set(true)
+        xml.required.set(true)
+        csv.required.set(false)
+    }
 }
 
 // Include libraries used by the app, code generators, and test suites
