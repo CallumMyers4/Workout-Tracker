@@ -15,24 +15,196 @@ permissions:
   contents: read
 
 jobs:
+  test-scopes:
+    name: Select relevant test areas
+    runs-on: ubuntu-latest
+    outputs:
+      jvm-scopes: ${{ steps.scopes.outputs.jvm-scopes }}
+      android-scopes: ${{ steps.scopes.outputs.android-scopes }}
+      has-jvm: ${{ steps.scopes.outputs.has-jvm }}
+      has-android: ${{ steps.scopes.outputs.has-android }}
+
+    steps:
+      - name: Check out source and push history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify every test class is assigned
+        shell: bash
+        run: |
+          unexpected_jvm=false
+          while IFS= read -r test_file; do
+            case "$test_file" in
+              WorkoutTracker/app/src/test/*/domain/*|\
+              WorkoutTracker/app/src/test/*/core/model/*|\
+              WorkoutTracker/app/src/test/*/data/backup/*|\
+              WorkoutTracker/app/src/test/*/feature/*|\
+              WorkoutTracker/app/src/test/*/ui/theme/*)
+                ;;
+              *)
+                echo "Unassigned JVM test: $test_file"
+                unexpected_jvm=true
+                ;;
+            esac
+          done < <(find WorkoutTracker/app/src/test -type f -name '*Test.kt' | sort)
+
+          missing_android=false
+          while IFS= read -r test_file; do
+            package_name="$(sed -n 's/^package //p' "$test_file" | head -n 1)"
+            class_name="$(sed -n 's/^class \([A-Za-z0-9_]*Test\).*/\1/p' "$test_file" | head -n 1)"
+            test_class="$package_name.$class_name"
+            if ! grep -Fq "$test_class" .github/workflows/android-unit-tests.yml; then
+              echo "Unassigned instrumentation test: $test_class"
+              missing_android=true
+            fi
+          done < <(find WorkoutTracker/app/src/androidTest -type f -name '*Test.kt' | sort)
+
+          if $unexpected_jvm || $missing_android; then
+            exit 1
+          fi
+
+      - name: Select test areas from changed paths
+        id: scopes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          domain=false
+          backup=false
+          state=false
+          data=false
+          components=false
+          navigation=false
+
+          if [ "$EVENT_NAME" != "push" ]; then
+            domain=true
+            backup=true
+            state=true
+            data=true
+            components=true
+            navigation=true
+          else
+            changed_file="$RUNNER_TEMP/changed-test-paths.txt"
+            if [ -z "$BEFORE_SHA" ] || [[ "$BEFORE_SHA" =~ ^0+$ ]] || \
+              ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+              git show --pretty=format: --name-only "$AFTER_SHA" > "$changed_file"
+            else
+              git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" > "$changed_file"
+            fi
+
+            while IFS= read -r path; do
+              case "$path" in
+                .github/workflows/android-unit-tests.yml|WorkoutTracker/app/build.gradle.kts|\
+                WorkoutTracker/build.gradle.kts|WorkoutTracker/settings.gradle.kts|\
+                WorkoutTracker/gradle.properties|WorkoutTracker/gradlew|WorkoutTracker/gradlew.bat|\
+                WorkoutTracker/gradle/*)
+                  domain=true; backup=true; state=true
+                  data=true; components=true; navigation=true
+                  ;;
+                WorkoutTracker/app/src/main/java/com/example/workouttracker/core/*|\
+                WorkoutTracker/app/src/main/java/com/example/workouttracker/domain/repository/*)
+                  domain=true; backup=true; state=true
+                  data=true; components=true; navigation=true
+                  ;;
+                WorkoutTracker/app/src/main/java/com/example/workouttracker/domain/service/*)
+                  domain=true; state=true; data=true
+                  ;;
+                WorkoutTracker/app/src/main/java/com/example/workouttracker/data/backup/*)
+                  backup=true; data=true
+                  ;;
+                WorkoutTracker/app/src/main/java/com/example/workouttracker/data/*|\
+                WorkoutTracker/app/schemas/*)
+                  data=true
+                  ;;
+                WorkoutTracker/app/src/main/java/com/example/workouttracker/feature/*/*ViewModel.kt|\
+                WorkoutTracker/app/src/main/java/com/example/workouttracker/feature/*/*UiState.kt)
+                  state=true; navigation=true
+                  ;;
+                WorkoutTracker/app/src/main/java/com/example/workouttracker/feature/*)
+                  components=true; navigation=true
+                  ;;
+                WorkoutTracker/app/src/main/java/com/example/workouttracker/ui/theme/NotificationPopup.kt)
+                  state=true; components=true; navigation=true
+                  ;;
+                WorkoutTracker/app/src/main/java/com/example/workouttracker/ui/*|\
+                WorkoutTracker/app/src/main/java/com/example/workouttracker/navigation/*|\
+                WorkoutTracker/app/src/main/java/com/example/workouttracker/AppContainer.kt|\
+                WorkoutTracker/app/src/main/java/com/example/workouttracker/MainActivity.kt|\
+                WorkoutTracker/app/src/main/AndroidManifest.xml)
+                  navigation=true
+                  ;;
+                WorkoutTracker/app/src/main/res/*)
+                  components=true; navigation=true
+                  ;;
+                WorkoutTracker/app/src/test/*/core/*|WorkoutTracker/app/src/test/*/domain/*)
+                  domain=true
+                  ;;
+                WorkoutTracker/app/src/test/*/data/backup/*)
+                  backup=true
+                  ;;
+                WorkoutTracker/app/src/test/*/feature/*|WorkoutTracker/app/src/test/*/ui/*)
+                  state=true
+                  ;;
+                WorkoutTracker/app/src/test/*)
+                  domain=true; backup=true; state=true
+                  ;;
+                WorkoutTracker/app/src/androidTest/*/data/*)
+                  data=true
+                  ;;
+                WorkoutTracker/app/src/androidTest/*/feature/*)
+                  components=true
+                  ;;
+                WorkoutTracker/app/src/androidTest/*/ui/*)
+                  navigation=true
+                  ;;
+                WorkoutTracker/app/src/androidTest/*)
+                  data=true; components=true; navigation=true
+                  ;;
+                WorkoutTracker/app/src/main/java/*)
+                  domain=true; backup=true; state=true
+                  data=true; components=true; navigation=true
+                  ;;
+              esac
+            done < "$changed_file"
+          fi
+
+          jvm_scopes=()
+          android_scopes=()
+          if $domain; then jvm_scopes+=(domain); fi
+          if $backup; then jvm_scopes+=(backup); fi
+          if $state; then jvm_scopes+=(state); fi
+          if $data; then android_scopes+=(data); fi
+          if $components; then android_scopes+=(components); fi
+          if $navigation; then android_scopes+=(navigation); fi
+
+          to_json() {
+            if [ "$#" -eq 0 ]; then
+              printf '[]'
+            else
+              printf '%s\n' "$@" | jq -R . | jq -s -c .
+            fi
+          }
+
+          jvm_json="$(to_json "${jvm_scopes[@]}")"
+          android_json="$(to_json "${android_scopes[@]}")"
+          echo "jvm-scopes=$jvm_json" >> "$GITHUB_OUTPUT"
+          echo "android-scopes=$android_json" >> "$GITHUB_OUTPUT"
+          echo "has-jvm=$([ "${#jvm_scopes[@]}" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "has-android=$([ "${#android_scopes[@]}" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
   jvm-tests:
-    name: Test area ${{ matrix.area }} - ${{ matrix.name }}
+    needs: test-scopes
+    if: needs.test-scopes.outputs.has-jvm == 'true'
+    name: JVM tests - ${{ matrix.scope }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - area: 1
-            name: Domain logic
-            test-args: >-
-              --tests com.example.workouttracker.domain.*
-              --tests com.example.workouttracker.core.model.*
-              --tests com.example.workouttracker.feature.workouteditor.WorkoutDraftWeightConversionTest
-              --tests com.example.workouttracker.ExampleUnitTest
-          - area: 2
-            name: Backup
-            test-args: --tests com.example.workouttracker.data.backup.*
+        scope: ${{ fromJSON(needs.test-scopes.outputs.jvm-scopes) }}
     defaults:
       run:
         working-directory: WorkoutTracker
@@ -40,6 +212,9 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v6
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -53,14 +228,35 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Run ${{ matrix.name }} tests
-        run: bash ./gradlew :app:testDebugUnitTest ${{ matrix.test-args }} --no-daemon --stacktrace
+      - name: Run ${{ matrix.scope }} tests
+        shell: bash
+        env:
+          TEST_SCOPE: ${{ matrix.scope }}
+        run: |
+          case "$TEST_SCOPE" in
+            domain)
+              test_args=(
+                --tests 'com.example.workouttracker.domain.*'
+                --tests 'com.example.workouttracker.core.model.*'
+              )
+              ;;
+            backup)
+              test_args=(--tests 'com.example.workouttracker.data.backup.*')
+              ;;
+            state)
+              test_args=(
+                --tests 'com.example.workouttracker.feature.*'
+                --tests 'com.example.workouttracker.ui.theme.*'
+              )
+              ;;
+          esac
+          ./gradlew :app:testDebugUnitTest "${test_args[@]}" --no-daemon --stacktrace
 
-      - name: Upload ${{ matrix.name }} test results
+      - name: Upload ${{ matrix.scope }} test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-area-${{ matrix.area }}-results
+          name: jvm-test-${{ matrix.scope }}-results
           path: |
             WorkoutTracker/app/build/test-results/testDebugUnitTest/
             WorkoutTracker/app/build/reports/tests/testDebugUnitTest/
@@ -68,27 +264,20 @@ jobs:
           retention-days: 14
 
   instrumented-tests:
-    name: Test area ${{ matrix.area }} - ${{ matrix.name }}
+    needs: test-scopes
+    if: >-
+      needs.test-scopes.outputs.has-android == 'true' &&
+      (github.event_name == 'pull_request' ||
+       github.event_name == 'workflow_dispatch' ||
+       contains(github.event.head_commit.message, '--ui-tests'))
+    name: Android tests - ${{ matrix.scope }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       max-parallel: 1
       matrix:
-        include:
-          - area: 3
-            name: Repositories and database
-            test-classes: |-
-              com.example.workouttracker.data.RoomRepositoryTest
-              com.example.workouttracker.ExampleInstrumentedTest
-          - area: 4
-            name: UI components
-            test-classes: |-
-              com.example.workouttracker.feature.workouteditor.ExerciseEditorCardTest
-              com.example.workouttracker.feature.goals.GoalCardTest
-          - area: 5
-            name: Page switching
-            test-classes: com.example.workouttracker.ui.PageSwitchingTest
+        scope: ${{ fromJSON(needs.test-scopes.outputs.android-scopes) }}
     defaults:
       run:
         working-directory: WorkoutTracker
@@ -96,6 +285,9 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v6
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -113,10 +305,40 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Run ${{ matrix.name }} tests
-        uses: reactivecircus/android-emulator-runner@v2.38.0
+      - name: Select ${{ matrix.scope }} test classes
+        shell: bash
         env:
-          TEST_CLASSES: ${{ matrix.test-classes }}
+          TEST_SCOPE: ${{ matrix.scope }}
+        run: |
+          case "$TEST_SCOPE" in
+            data)
+              test_classes=(
+                com.example.workouttracker.data.DataStorePreferencesRepositoryTest
+                com.example.workouttracker.data.RoomRepositoryTest
+                com.example.workouttracker.data.WorkoutMigrationTest
+                com.example.workouttracker.ExampleInstrumentedTest
+              )
+              ;;
+            components)
+              test_classes=(
+                com.example.workouttracker.feature.workouteditor.ExerciseEditorCardTest
+                com.example.workouttracker.feature.workouteditor.LogTypeChooserTest
+                com.example.workouttracker.feature.goals.GoalCardTest
+                com.example.workouttracker.feature.settings.ExerciseLibraryDialogTest
+              )
+              ;;
+            navigation)
+              test_classes=(com.example.workouttracker.ui.PageSwitchingTest)
+              ;;
+          esac
+          {
+            echo 'TEST_CLASSES<<EOF'
+            printf '%s\n' "${test_classes[@]}"
+            echo 'EOF'
+          } >> "$GITHUB_ENV"
+
+      - name: Run ${{ matrix.scope }} tests
+        uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           # API 29 is the action's documented stable Linux CI example and is
           # safely above this app's API 26 minimum.
@@ -132,11 +354,11 @@ jobs:
             -Pandroid.testInstrumentationRunnerArguments.class=$(printf '%s' "$TEST_CLASSES" | tr '\n' ',')
             --no-daemon --stacktrace
 
-      - name: Upload ${{ matrix.name }} test results
+      - name: Upload ${{ matrix.scope }} test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-area-${{ matrix.area }}-results
+          name: android-test-${{ matrix.scope }}-results
           path: |
             WorkoutTracker/app/build/outputs/androidTest-results/connected/
             WorkoutTracker/app/build/reports/androidTests/connected/

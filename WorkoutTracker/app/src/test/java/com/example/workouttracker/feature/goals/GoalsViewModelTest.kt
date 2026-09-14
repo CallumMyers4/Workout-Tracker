@@ -114,6 +114,28 @@ class GoalsViewModelTest {
         assertEquals("Could not save goal.", editor?.errorMessage)
     }
 
+    @Test
+    fun imperialStrengthGoalIsConvertedToKilogramsAndCanBeCleared() = runTest(dispatcher) {
+        val repository = FakeGoalRepository()
+        val model = GoalsViewModel(repository)
+        advanceUntilIdle()
+        model.openGoalEditor(STRENGTH_EXERCISE_ID)
+        model.setWeightsUnit(WeightsUnit.IMPERIAL)
+        assertEquals("220.46", model.uiState.value.editor?.input)
+
+        model.updateGoalInput("242.51")
+        model.saveGoal()
+        advanceUntilIdle()
+        assertEquals(110.0, repository.strengthUpdates.single().goalKg ?: 0.0, 0.01)
+        assertNull(model.uiState.value.editor)
+
+        model.openGoalEditor(STRENGTH_EXERCISE_ID)
+        model.updateGoalInput("")
+        model.saveGoal()
+        advanceUntilIdle()
+        assertEquals(StrengthGoalUpdate(STRENGTH_EXERCISE_ID, null), repository.strengthUpdates.last())
+    }
+
     private suspend fun kotlinx.coroutines.test.TestScope.createCardioModel(
         repository: FakeGoalRepository,
     ): GoalsViewModel {
@@ -130,10 +152,24 @@ class GoalsViewModelTest {
         val durationSeconds: Long?,
     )
 
+    private data class StrengthGoalUpdate(val exerciseId: Long, val goalKg: Double?)
+
     private class FakeGoalRepository(
         private val updateError: Throwable? = null,
     ) : GoalRepository {
-        private val strengthProgress = MutableStateFlow<List<ExerciseProgress>>(emptyList())
+        private val strengthProgress = MutableStateFlow(
+            listOf(
+                ExerciseProgress(
+                    exercise = CatalogExercise(
+                        id = STRENGTH_EXERCISE_ID,
+                        name = "Deadlift",
+                        goalKg = 100.0,
+                    ),
+                    bestSet = null,
+                    percentage = null,
+                ),
+            ),
+        )
         private val cardioProgress = MutableStateFlow(
             listOf(
                 CardioProgress(
@@ -147,13 +183,17 @@ class GoalsViewModelTest {
                 ),
             ),
         )
+        val strengthUpdates = mutableListOf<StrengthGoalUpdate>()
         val cardioUpdates = mutableListOf<CardioGoalUpdate>()
 
         override fun observeProgress(): Flow<List<ExerciseProgress>> = strengthProgress
 
         override fun observeCardioProgress(): Flow<List<CardioProgress>> = cardioProgress
 
-        override suspend fun updateGoal(exerciseId: Long, goalKg: Double?) = Unit
+        override suspend fun updateGoal(exerciseId: Long, goalKg: Double?) {
+            strengthUpdates += StrengthGoalUpdate(exerciseId, goalKg)
+            updateError?.let { throw it }
+        }
 
         override suspend fun updateCardioGoal(
             exerciseId: Long,
@@ -167,5 +207,6 @@ class GoalsViewModelTest {
 
     private companion object {
         const val EXERCISE_ID = 7L
+        const val STRENGTH_EXERCISE_ID = 8L
     }
 }

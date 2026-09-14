@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.espresso.Espresso
 import com.example.workouttracker.AppContainer
 import com.example.workouttracker.core.model.WorkoutDraft
 import com.example.workouttracker.data.backup.GoogleAuthorizationGateway
@@ -193,6 +194,9 @@ class PageSwitchingTest {
         composeRule.onNode(hasText("Changed workout") and hasSetTextAction())
 
     private fun openTab(label: String) {
+        // The app intentionally hides primary navigation while the IME is visible.
+        Espresso.closeSoftKeyboard()
+        composeRule.waitForIdle()
         composeRule.onAllNodes(hasText(label) and hasClickAction()).onFirst().performClick()
     }
 
