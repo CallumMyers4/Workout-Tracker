@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
@@ -54,10 +55,10 @@ class PageSwitchingTest {
         openTab("Settings")
         composeRule.onNodeWithText("Manage exercise library").assertIsDisplayed()
 
-        openTab("Home")
+        openTab("History")
         homeSearchField().assertIsDisplayed()
 
-        openTab("Log")
+        openTab("New workout")
         composeRule.onNodeWithText("Strength").assertIsDisplayed()
         composeRule.onNodeWithText("Cardio").assertIsDisplayed()
     }
@@ -65,26 +66,27 @@ class PageSwitchingTest {
     @Test
     fun unfinishedLogDraftSurvivesSwitchingThroughEveryOtherTab() {
         showApp()
-        openTab("Log")
+        openTab("New workout")
         composeRule.onNodeWithText("Strength").performClick()
         workoutNameField().performTextReplacement("Unfinished push day")
 
-        listOf("Home", "Progress", "Settings").forEach { destination ->
+        listOf("Home", "History", "Progress", "Settings").forEach { destination ->
             openTab(destination)
-            openTab("Log")
+            openTab("New workout")
             workoutNameField().assertTextContains("Unfinished push day", substring = true)
         }
     }
 
     @Test
-    fun homeAlwaysReturnsToListAfterLeavingWorkoutDetails() {
+    fun historyAlwaysReturnsToListAfterLeavingWorkoutDetails() {
         seedWorkout()
         showApp()
+        openTab("History")
         composeRule.onNodeWithText("Existing workout").performClick()
         composeRule.onNodeWithText("Edit workout").assertIsDisplayed()
 
         openTab("Settings")
-        openTab("Home")
+        openTab("History")
 
         homeSearchField().assertIsDisplayed()
         composeRule.onAllNodesWithText("Edit workout").assertCountEquals(0)
@@ -94,13 +96,14 @@ class PageSwitchingTest {
     fun cleanExistingEditExitsWithoutPromptAndHomeReturnsToList() {
         seedWorkout()
         showApp()
+        openTab("History")
         openExistingWorkoutEditor()
 
         openTab("Progress")
 
         composeRule.onAllNodesWithText("Discard changes?").assertCountEquals(0)
         composeRule.onNodeWithText("Add exercises in Settings to create goals.").assertIsDisplayed()
-        openTab("Home")
+        openTab("History")
         homeSearchField().assertIsDisplayed()
     }
 
@@ -108,10 +111,11 @@ class PageSwitchingTest {
     fun keepEditingCancelsEveryDirtyEditTabSwitch() {
         seedWorkout()
         showApp()
+        openTab("History")
         openExistingWorkoutEditor()
         editWorkoutName("Changed workout")
 
-        listOf("Log", "Progress", "Settings").forEach { destination ->
+        listOf("New workout", "Progress", "Settings").forEach { destination ->
             openTab(destination)
             composeRule.onNodeWithText("Discard changes?").assertIsDisplayed()
             composeRule.onNodeWithText("Keep editing").performClick()
@@ -124,18 +128,18 @@ class PageSwitchingTest {
     fun dirtyEditPromptDoesNotOverwriteAnExistingLogDraft() {
         seedWorkout()
         showApp()
-        openTab("Log")
+        openTab("New workout")
         composeRule.onNodeWithText("Strength").performClick()
         workoutNameField().performTextReplacement("Retained log draft")
-        openTab("Home")
+        openTab("History")
         openExistingWorkoutEditor()
         editWorkoutName("Changed workout")
 
-        openTab("Log")
+        openTab("New workout")
         composeRule.onNodeWithText("Keep editing").performClick()
         changedWorkoutNameField().assertTextContains("Changed workout", substring = true)
 
-        openTab("Log")
+        openTab("New workout")
         composeRule.onNodeWithText("Discard").performClick()
         workoutNameField().assertTextContains("Retained log draft", substring = true)
     }
@@ -144,15 +148,16 @@ class PageSwitchingTest {
     fun discardingDirtyEditOpensRequestedTabThenHomeList() {
         seedWorkout()
         showApp()
+        openTab("History")
 
-        listOf("Log", "Progress", "Settings").forEach { destination ->
+        listOf("New workout", "Progress", "Settings").forEach { destination ->
             openExistingWorkoutEditor()
             editWorkoutName("Discard me $destination")
             openTab(destination)
             composeRule.onNodeWithText("Discard").performClick()
             assertBasePage(destination)
 
-            openTab("Home")
+            openTab("History")
             homeSearchField().assertIsDisplayed()
             composeRule.onAllNodesWithText("Edit workout").assertCountEquals(0)
         }
@@ -164,7 +169,7 @@ class PageSwitchingTest {
                 WorkoutTrackerApp(container)
             }
         }
-        homeSearchField().assertIsDisplayed()
+        composeRule.onNodeWithText("Last 30 days").assertIsDisplayed()
     }
 
     private fun seedWorkout(): Long = runBlocking {
@@ -197,12 +202,16 @@ class PageSwitchingTest {
         // The app intentionally hides primary navigation while the IME is visible.
         Espresso.closeSoftKeyboard()
         composeRule.waitForIdle()
-        composeRule.onAllNodes(hasText(label) and hasClickAction()).onFirst().performClick()
+        if (label == "New workout") {
+            composeRule.onNodeWithContentDescription(label).performClick()
+        } else {
+            composeRule.onAllNodes(hasText(label) and hasClickAction()).onFirst().performClick()
+        }
     }
 
     private fun assertBasePage(label: String) {
         when (label) {
-            "Log" -> composeRule.onNodeWithText("Strength").assertIsDisplayed()
+            "New workout" -> composeRule.onNodeWithText("Strength").assertIsDisplayed()
             "Progress" -> composeRule.onNodeWithText("Add exercises in Settings to create goals.")
                 .assertIsDisplayed()
             "Settings" -> composeRule.onNodeWithText("Manage exercise library").assertIsDisplayed()

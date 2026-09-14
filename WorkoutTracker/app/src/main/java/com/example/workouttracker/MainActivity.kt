@@ -4,8 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
 import com.example.workouttracker.ui.WorkoutTrackerApp
 import com.example.workouttracker.ui.theme.WorkoutTrackerTheme
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.workouttracker.data.backup.AndroidGoogleAuthorizationGateway
@@ -24,6 +26,12 @@ class MainActivity : ComponentActivity() {
             val preferences by container.preferencesRepository.preferences.collectAsStateWithLifecycle(
                 initialValue = com.example.workouttracker.core.model.AppPreferences(),
             )
+            // Keep the transparent status bar, but match its icon contrast to the
+            // app theme rather than the device-wide light/dark setting.
+            SideEffect {
+                WindowCompat.getInsetsController(window, window.decorView)
+                    .isAppearanceLightStatusBars = !preferences.darkTheme
+            }
             WorkoutTrackerTheme(darkTheme = preferences.darkTheme) {
                 WorkoutTrackerApp(container = container)
             }

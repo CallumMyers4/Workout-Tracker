@@ -46,8 +46,8 @@ fun WorkoutListScreen(
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         PageTitle(
-            text = "Home",
-            icon = painterResource(R.drawable.icon_home)
+            text = "History",
+            icon = painterResource(R.drawable.icon_history)
         )
         // Display the search input and dropdown browsing controls
         OutlinedTextField(
@@ -121,7 +121,7 @@ fun WorkoutListScreen(
                     "Try changing the search, date, sort, or grouping controls."
                 } else {
                     "No workouts found.\n" +
-                    "Go to the Log page to record your first workout!"
+                    "Tap + to record your first workout!"
                 },
                 Modifier.padding(horizontal = 24.dp, vertical = 28.dp),
                 style = EmptyStateTextStyle,

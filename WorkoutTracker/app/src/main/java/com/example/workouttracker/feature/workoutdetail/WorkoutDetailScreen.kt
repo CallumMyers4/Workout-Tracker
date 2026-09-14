@@ -39,7 +39,7 @@ fun WorkoutDetailScreen(
     onConfirmDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Keep the selected Home destination in sync with both system and title-bar back actions
+    // Keep the originating destination in sync with both system and title-bar back actions
     BackHandler(onBack = onBack)
 
     Column(modifier.fillMaxSize()) {
@@ -49,7 +49,7 @@ fun WorkoutDetailScreen(
                 text = it.name,
                 icon = painterResource(R.drawable.icon_back),
                 onIconClick = onBack,
-                iconContentDescription = "Back to Home",
+                iconContentDescription = "Back",
             )
         }
         when {
