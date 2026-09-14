@@ -6,13 +6,15 @@ import kotlinx.serialization.Serializable
 @Serializable
 sealed interface AppRoute {
     @Serializable
+    data object Home : AppRoute
+    @Serializable
     data object WorkoutList : AppRoute
     @Serializable
-    data class WorkoutDetail(val workoutId: Long) : AppRoute
+    data class WorkoutDetail(val workoutId: Long, val returnToHome: Boolean = false) : AppRoute
     @Serializable
     data object WorkoutEditor : AppRoute
     @Serializable
-    data class EditWorkout(val workoutId: Long) : AppRoute
+    data class EditWorkout(val workoutId: Long, val returnToHome: Boolean = false) : AppRoute
     @Serializable
     data object Goals : AppRoute
     @Serializable
