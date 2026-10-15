@@ -26,8 +26,8 @@ android {
         applicationId = "org.callu.workouttracker"
         minSdk = 26
         targetSdk = 36
-        versionCode = 14
-        versionName = "2.7.0"
+        versionCode = 15
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
